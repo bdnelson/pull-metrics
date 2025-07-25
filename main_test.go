@@ -77,6 +77,7 @@ func TestGetApprovers(t *testing.T) {
 						Login string `json:"login"`
 					}{Login: "user1"},
 					State: "APPROVED",
+					SubmittedAt: "2023-01-01T12:00:00Z",
 				},
 			},
 			expected: []string{"user1"},
@@ -89,12 +90,14 @@ func TestGetApprovers(t *testing.T) {
 						Login string `json:"login"`
 					}{Login: "user1"},
 					State: "APPROVED",
+					SubmittedAt: "2023-01-01T12:00:00Z",
 				},
 				{
 					User: struct {
 						Login string `json:"login"`
 					}{Login: "user2"},
 					State: "APPROVED",
+					SubmittedAt: "2023-01-01T13:00:00Z",
 				},
 			},
 			expected: []string{"user1", "user2"},
@@ -107,18 +110,21 @@ func TestGetApprovers(t *testing.T) {
 						Login string `json:"login"`
 					}{Login: "user1"},
 					State: "APPROVED",
+					SubmittedAt: "2023-01-01T12:00:00Z",
 				},
 				{
 					User: struct {
 						Login string `json:"login"`
 					}{Login: "user2"},
 					State: "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T13:00:00Z",
 				},
 				{
 					User: struct {
 						Login string `json:"login"`
 					}{Login: "user3"},
 					State: "COMMENTED",
+					SubmittedAt: "2023-01-01T14:00:00Z",
 				},
 			},
 			expected: []string{"user1"},
@@ -131,12 +137,14 @@ func TestGetApprovers(t *testing.T) {
 						Login string `json:"login"`
 					}{Login: "user1"},
 					State: "APPROVED",
+					SubmittedAt: "2023-01-01T12:00:00Z",
 				},
 				{
 					User: struct {
 						Login string `json:"login"`
 					}{Login: "user1"},
 					State: "APPROVED",
+					SubmittedAt: "2023-01-01T13:00:00Z",
 				},
 			},
 			expected: []string{"user1"},
@@ -198,6 +206,7 @@ func TestGetCommentors(t *testing.T) {
 					User: struct {
 						Login string `json:"login"`
 					}{Login: "commenter1"},
+					CreatedAt: "2023-01-01T12:00:00Z",
 				},
 			},
 			authorUsername: "author",
@@ -210,11 +219,13 @@ func TestGetCommentors(t *testing.T) {
 					User: struct {
 						Login string `json:"login"`
 					}{Login: "commenter1"},
+					CreatedAt: "2023-01-01T12:00:00Z",
 				},
 				{
 					User: struct {
 						Login string `json:"login"`
 					}{Login: "commenter2"},
+					CreatedAt: "2023-01-01T13:00:00Z",
 				},
 			},
 			authorUsername: "author",
@@ -227,16 +238,19 @@ func TestGetCommentors(t *testing.T) {
 					User: struct {
 						Login string `json:"login"`
 					}{Login: "commenter1"},
+					CreatedAt: "2023-01-01T12:00:00Z",
 				},
 				{
 					User: struct {
 						Login string `json:"login"`
 					}{Login: "author"},
+					CreatedAt: "2023-01-01T13:00:00Z",
 				},
 				{
 					User: struct {
 						Login string `json:"login"`
 					}{Login: "commenter2"},
+					CreatedAt: "2023-01-01T14:00:00Z",
 				},
 			},
 			authorUsername: "author",
@@ -249,11 +263,13 @@ func TestGetCommentors(t *testing.T) {
 					User: struct {
 						Login string `json:"login"`
 					}{Login: "commenter1"},
+					CreatedAt: "2023-01-01T12:00:00Z",
 				},
 				{
 					User: struct {
 						Login string `json:"login"`
 					}{Login: "commenter1"},
+					CreatedAt: "2023-01-01T13:00:00Z",
 				},
 			},
 			authorUsername: "author",
@@ -269,4 +285,153 @@ func TestGetCommentors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFormatToUTC(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "already UTC",
+			input:    "2023-01-01T12:00:00Z",
+			expected: "2023-01-01T12:00:00Z",
+		},
+		{
+			name:     "with timezone offset",
+			input:    "2023-01-01T12:00:00-05:00",
+			expected: "2023-01-01T17:00:00Z",
+		},
+		{
+			name:     "invalid format returns original",
+			input:    "invalid-date",
+			expected: "invalid-date",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatToUTC(tt.input)
+			if result != tt.expected {
+				t.Errorf("formatToUTC() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGetTimestamps(t *testing.T) {
+	tests := []struct {
+		name     string
+		pr       *GitHubPR
+		reviews  []GitHubReview
+		comments []GitHubComment
+		timeline []GitHubTimelineEvent
+		validate func(*testing.T, *Timestamps)
+	}{
+		{
+			name: "all timestamps present",
+			pr: &GitHubPR{
+				CreatedAt: "2023-01-01T10:00:00Z",
+				MergedAt:  stringPtr("2023-01-01T18:00:00Z"),
+				ClosedAt:  stringPtr("2023-01-01T18:00:00Z"),
+			},
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"},
+					State:       "APPROVED",
+					SubmittedAt: "2023-01-01T15:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer2"},
+					State:       "APPROVED",
+					SubmittedAt: "2023-01-01T16:00:00Z",
+				},
+			},
+			comments: []GitHubComment{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "commenter1"},
+					CreatedAt: "2023-01-01T12:00:00Z",
+				},
+			},
+			timeline: []GitHubTimelineEvent{
+				{
+					Event:     "review_requested",
+					CreatedAt: "2023-01-01T11:00:00Z",
+				},
+			},
+			validate: func(t *testing.T, ts *Timestamps) {
+				if ts.CreatedAt == nil || *ts.CreatedAt != "2023-01-01T10:00:00Z" {
+					t.Errorf("Expected CreatedAt to be 2023-01-01T10:00:00Z, got %v", ts.CreatedAt)
+				}
+				if ts.FirstReviewRequest == nil || *ts.FirstReviewRequest != "2023-01-01T11:00:00Z" {
+					t.Errorf("Expected FirstReviewRequest to be 2023-01-01T11:00:00Z, got %v", ts.FirstReviewRequest)
+				}
+				if ts.FirstComment == nil || *ts.FirstComment != "2023-01-01T12:00:00Z" {
+					t.Errorf("Expected FirstComment to be 2023-01-01T12:00:00Z, got %v", ts.FirstComment)
+				}
+				if ts.FirstApproval == nil || *ts.FirstApproval != "2023-01-01T15:00:00Z" {
+					t.Errorf("Expected FirstApproval to be 2023-01-01T15:00:00Z, got %v", ts.FirstApproval)
+				}
+				if ts.SecondApproval == nil || *ts.SecondApproval != "2023-01-01T16:00:00Z" {
+					t.Errorf("Expected SecondApproval to be 2023-01-01T16:00:00Z, got %v", ts.SecondApproval)
+				}
+				if ts.MergedAt == nil || *ts.MergedAt != "2023-01-01T18:00:00Z" {
+					t.Errorf("Expected MergedAt to be 2023-01-01T18:00:00Z, got %v", ts.MergedAt)
+				}
+				if ts.ClosedAt == nil || *ts.ClosedAt != "2023-01-01T18:00:00Z" {
+					t.Errorf("Expected ClosedAt to be 2023-01-01T18:00:00Z, got %v", ts.ClosedAt)
+				}
+			},
+		},
+		{
+			name: "no optional timestamps",
+			pr: &GitHubPR{
+				CreatedAt: "2023-01-01T10:00:00Z",
+			},
+			reviews:  []GitHubReview{},
+			comments: []GitHubComment{},
+			timeline: []GitHubTimelineEvent{},
+			validate: func(t *testing.T, ts *Timestamps) {
+				if ts.CreatedAt == nil || *ts.CreatedAt != "2023-01-01T10:00:00Z" {
+					t.Errorf("Expected CreatedAt to be 2023-01-01T10:00:00Z, got %v", ts.CreatedAt)
+				}
+				if ts.FirstReviewRequest != nil {
+					t.Errorf("Expected FirstReviewRequest to be nil, got %v", ts.FirstReviewRequest)
+				}
+				if ts.FirstComment != nil {
+					t.Errorf("Expected FirstComment to be nil, got %v", ts.FirstComment)
+				}
+				if ts.FirstApproval != nil {
+					t.Errorf("Expected FirstApproval to be nil, got %v", ts.FirstApproval)
+				}
+				if ts.SecondApproval != nil {
+					t.Errorf("Expected SecondApproval to be nil, got %v", ts.SecondApproval)
+				}
+				if ts.MergedAt != nil {
+					t.Errorf("Expected MergeAt to be nil, got %v", ts.MergedAt)
+				}
+				if ts.ClosedAt != nil {
+					t.Errorf("Expected ClosedAt to be nil, got %v", ts.ClosedAt)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getTimestamps(tt.pr, tt.reviews, tt.comments, tt.timeline)
+			tt.validate(t, result)
+		})
+	}
+}
+
+func stringPtr(s string) *string {
+	return &s
 }

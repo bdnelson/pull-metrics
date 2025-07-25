@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
+	"time"
 )
 
 type PRDetails struct {
@@ -17,6 +19,13 @@ type PRDetails struct {
 	NumCommentors     int      `json:"num_commentors"`
 	NumApprovers      int      `json:"num_approvers"`
 	NumRequestedReviewers int  `json:"num_requested_reviewers"`
+	CreatedAt         *string  `json:"created_at,omitempty"`
+	FirstReviewRequest *string `json:"first_review_request,omitempty"`
+	FirstComment      *string  `json:"first_comment,omitempty"`
+	FirstApproval     *string  `json:"first_approval,omitempty"`
+	SecondApproval    *string  `json:"second_approval,omitempty"`
+	MergedAt          *string  `json:"merged_at,omitempty"`
+	ClosedAt          *string  `json:"closed_at,omitempty"`
 }
 
 type GitHubPR struct {
@@ -27,6 +36,9 @@ type GitHubPR struct {
 	State       string `json:"state"`
 	Draft       bool   `json:"draft"`
 	Merged      bool   `json:"merged"`
+	CreatedAt   string `json:"created_at"`
+	MergedAt    *string `json:"merged_at"`
+	ClosedAt    *string `json:"closed_at"`
 	RequestedReviewers []struct {
 		Login string `json:"login"`
 	} `json:"requested_reviewers"`
@@ -36,13 +48,33 @@ type GitHubReview struct {
 	User struct {
 		Login string `json:"login"`
 	} `json:"user"`
-	State string `json:"state"`
+	State       string `json:"state"`
+	SubmittedAt string `json:"submitted_at"`
 }
 
 type GitHubComment struct {
 	User struct {
 		Login string `json:"login"`
 	} `json:"user"`
+	CreatedAt string `json:"created_at"`
+}
+
+type GitHubTimelineEvent struct {
+	Event     string `json:"event"`
+	CreatedAt string `json:"created_at"`
+	Actor     struct {
+		Login string `json:"login"`
+	} `json:"actor"`
+}
+
+type Timestamps struct {
+	CreatedAt         *string
+	FirstReviewRequest *string
+	FirstComment      *string
+	FirstApproval     *string
+	SecondApproval    *string
+	MergedAt          *string
+	ClosedAt          *string
 }
 
 func main() {
@@ -100,11 +132,17 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		return nil, err
 	}
 
+	timeline, err := fetchTimeline(client, token, org, repo, prNumber)
+	if err != nil {
+		return nil, err
+	}
+
 	state := getPRState(pr)
 	approvers := getApprovers(reviews)
 	commentors := getCommentors(comments, pr.User.Login)
+	timestamps := getTimestamps(pr, reviews, comments, timeline)
 
-	return &PRDetails{
+	result := &PRDetails{
 		RepositoryName:        repo,
 		PRNumber:             prNumber,
 		AuthorUsername:       pr.User.Login,
@@ -113,7 +151,32 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		NumCommentors:        len(commentors),
 		NumApprovers:         len(approvers),
 		NumRequestedReviewers: len(pr.RequestedReviewers),
-	}, nil
+	}
+
+	// Add timestamps if they exist
+	if timestamps.CreatedAt != nil {
+		result.CreatedAt = timestamps.CreatedAt
+	}
+	if timestamps.FirstReviewRequest != nil {
+		result.FirstReviewRequest = timestamps.FirstReviewRequest
+	}
+	if timestamps.FirstComment != nil {
+		result.FirstComment = timestamps.FirstComment
+	}
+	if timestamps.FirstApproval != nil {
+		result.FirstApproval = timestamps.FirstApproval
+	}
+	if timestamps.SecondApproval != nil {
+		result.SecondApproval = timestamps.SecondApproval
+	}
+	if timestamps.MergedAt != nil {
+		result.MergedAt = timestamps.MergedAt
+	}
+	if timestamps.ClosedAt != nil {
+		result.ClosedAt = timestamps.ClosedAt
+	}
+
+	return result, nil
 }
 
 func fetchPR(client *http.Client, token, org, repo string, prNumber int) (*GitHubPR, error) {
@@ -197,6 +260,33 @@ func fetchComments(client *http.Client, token, org, repo string, prNumber int) (
 	return comments, nil
 }
 
+func fetchTimeline(client *http.Client, token, org, repo string, prNumber int) ([]GitHubTimelineEvent, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues/%d/timeline", org, repo, prNumber)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "token "+token)
+	req.Header.Set("Accept", "application/vnd.github.mockingbird-preview")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GitHub API returned status %d for timeline", resp.StatusCode)
+	}
+
+	var timeline []GitHubTimelineEvent
+	if err := json.NewDecoder(resp.Body).Decode(&timeline); err != nil {
+		return nil, err
+	}
+
+	return timeline, nil
+}
+
 func getPRState(pr *GitHubPR) string {
 	if pr.Draft {
 		return "draft"
@@ -230,4 +320,75 @@ func getCommentors(comments []GitHubComment, authorUsername string) map[string]b
 		}
 	}
 	return commentors
+}
+
+func getTimestamps(pr *GitHubPR, reviews []GitHubReview, comments []GitHubComment, timeline []GitHubTimelineEvent) *Timestamps {
+	timestamps := &Timestamps{}
+
+	// Created timestamp (from PR)
+	if pr.CreatedAt != "" {
+		utcTime := formatToUTC(pr.CreatedAt)
+		timestamps.CreatedAt = &utcTime
+	}
+
+	// Merged and closed timestamps (from PR)
+	if pr.MergedAt != nil && *pr.MergedAt != "" {
+		utcTime := formatToUTC(*pr.MergedAt)
+		timestamps.MergedAt = &utcTime
+	}
+	if pr.ClosedAt != nil && *pr.ClosedAt != "" {
+		utcTime := formatToUTC(*pr.ClosedAt)
+		timestamps.ClosedAt = &utcTime
+	}
+
+	// First review request (from timeline)
+	for _, event := range timeline {
+		if event.Event == "review_requested" && timestamps.FirstReviewRequest == nil {
+			utcTime := formatToUTC(event.CreatedAt)
+			timestamps.FirstReviewRequest = &utcTime
+			break
+		}
+	}
+
+	// First comment (from comments)
+	if len(comments) > 0 {
+		// Sort comments by creation time to get the first one
+		sort.Slice(comments, func(i, j int) bool {
+			return comments[i].CreatedAt < comments[j].CreatedAt
+		})
+		utcTime := formatToUTC(comments[0].CreatedAt)
+		timestamps.FirstComment = &utcTime
+	}
+
+	// First and second approvals (from reviews)
+	var approvals []GitHubReview
+	for _, review := range reviews {
+		if review.State == "APPROVED" {
+			approvals = append(approvals, review)
+		}
+	}
+	
+	// Sort approvals by submission time
+	sort.Slice(approvals, func(i, j int) bool {
+		return approvals[i].SubmittedAt < approvals[j].SubmittedAt
+	})
+
+	if len(approvals) > 0 {
+		utcTime := formatToUTC(approvals[0].SubmittedAt)
+		timestamps.FirstApproval = &utcTime
+	}
+	if len(approvals) > 1 {
+		utcTime := formatToUTC(approvals[1].SubmittedAt)
+		timestamps.SecondApproval = &utcTime
+	}
+
+	return timestamps
+}
+
+func formatToUTC(timestamp string) string {
+	t, err := time.Parse(time.RFC3339, timestamp)
+	if err != nil {
+		return timestamp // Return original if parsing fails
+	}
+	return t.UTC().Format(time.RFC3339)
 }
