@@ -9,7 +9,7 @@ Pull Metrics retrieves detailed information about a specific GitHub Pull Request
 ## Features
 
 - **Basic PR Information**: Organization, repository, PR number, author, state
-- **Review Metrics**: Number of commentors, approvers, requested reviewers, and their usernames
+- **Review Metrics**: Number of commentors, approvers, requested reviewers, change requests, and their usernames
 - **Size Analysis**: Lines of code changed and number of files modified
 - **Timeline Tracking**: Timestamps for key events (creation, first review request, first comment, approvals, merge, close)
 - **Development Activity**: Count of commits made after the first review request
@@ -100,6 +100,7 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
   "num_commentors": 0,
   "num_approvers": 0,
   "num_requested_reviewers": 0,
+  "change_requests_count": 0,
   "lines_changed": 0,
   "files_changed": 0,
   "commits_after_first_review": 0,
@@ -128,6 +129,7 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
 | `num_commentors` | integer | Number of unique commentors (excluding author) |
 | `num_approvers` | integer | Number of users who approved the PR |
 | `num_requested_reviewers` | integer | Number of requested reviewers |
+| `change_requests_count` | integer | Number of reviews that requested changes |
 | `lines_changed` | integer | Total lines of code impacted (additions + deletions) |
 | `files_changed` | integer | Number of files modified in the PR |
 | `commits_after_first_review` | integer | Number of commits made after the first review request |
@@ -248,6 +250,7 @@ $ ./pull-metrics microsoft vscode 12345
   "num_commentors": 3,
   "num_approvers": 2,
   "num_requested_reviewers": 2,
+  "change_requests_count": 1,
   "lines_changed": 245,
   "files_changed": 7,
   "commits_after_first_review": 2,

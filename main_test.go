@@ -823,6 +823,143 @@ func TestGeneratedAtTimestamp(t *testing.T) {
 	}
 }
 
+func TestCountChangeRequests(t *testing.T) {
+	tests := []struct {
+		name     string
+		reviews  []GitHubReview
+		expected int
+	}{
+		{
+			name:     "no reviews",
+			reviews:  []GitHubReview{},
+			expected: 0,
+		},
+		{
+			name: "no change requests",
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "user1"},
+					State:       "APPROVED",
+					SubmittedAt: "2023-01-01T12:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "user2"},
+					State:       "COMMENTED",
+					SubmittedAt: "2023-01-01T13:00:00Z",
+				},
+			},
+			expected: 0,
+		},
+		{
+			name: "single change request",
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "user1"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T12:00:00Z",
+				},
+			},
+			expected: 1,
+		},
+		{
+			name: "multiple change requests",
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "user1"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T12:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "user2"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T13:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "user3"},
+					State:       "APPROVED",
+					SubmittedAt: "2023-01-01T14:00:00Z",
+				},
+			},
+			expected: 2,
+		},
+		{
+			name: "mixed review states",
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "user1"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T12:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "user2"},
+					State:       "APPROVED",
+					SubmittedAt: "2023-01-01T13:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "user3"},
+					State:       "COMMENTED",
+					SubmittedAt: "2023-01-01T14:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "user4"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T15:00:00Z",
+				},
+			},
+			expected: 2,
+		},
+		{
+			name: "same user multiple change requests",
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "user1"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T12:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "user1"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T13:00:00Z",
+				},
+			},
+			expected: 2, // Each review counts separately
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := countChangeRequests(tt.reviews)
+			if result != tt.expected {
+				t.Errorf("countChangeRequests() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
 func stringPtr(s string) *string {
 	return &s
 }

@@ -20,6 +20,7 @@ type PRDetails struct {
 	NumCommentors     int      `json:"num_commentors"`
 	NumApprovers      int      `json:"num_approvers"`
 	NumRequestedReviewers int  `json:"num_requested_reviewers"`
+	ChangeRequestsCount int    `json:"change_requests_count"`
 	LinesChanged      int      `json:"lines_changed"`
 	FilesChanged      int      `json:"files_changed"`
 	CommitsAfterFirstReview int `json:"commits_after_first_review"`
@@ -197,6 +198,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 	prSize := calculatePRSize(files)
 	releaseName := findReleaseForMergedPR(pr, releases)
 	commitsAfterFirstReview := countCommitsAfterFirstReview(commits, timeline)
+	changeRequestsCount := countChangeRequests(reviews)
 
 	result := &PRDetails{
 		OrganizationName:     org,
@@ -208,6 +210,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		NumCommentors:        len(commentors),
 		NumApprovers:         len(approvers),
 		NumRequestedReviewers: len(pr.RequestedReviewers),
+		ChangeRequestsCount:  changeRequestsCount,
 		LinesChanged:         prSize.LinesChanged,
 		FilesChanged:         prSize.FilesChanged,
 		CommitsAfterFirstReview: commitsAfterFirstReview,
@@ -634,5 +637,15 @@ func countCommitsAfterFirstReview(commits []GitHubCommit, timeline []GitHubTimel
 		}
 	}
 
+	return count
+}
+
+func countChangeRequests(reviews []GitHubReview) int {
+	count := 0
+	for _, review := range reviews {
+		if review.State == "CHANGES_REQUESTED" {
+			count++
+		}
+	}
 	return count
 }
