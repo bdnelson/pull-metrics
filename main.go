@@ -22,6 +22,7 @@ type PRDetails struct {
 	NumRequestedReviewers int  `json:"num_requested_reviewers"`
 	LinesChanged      int      `json:"lines_changed"`
 	FilesChanged      int      `json:"files_changed"`
+	ReleaseName       *string  `json:"release_name,omitempty"`
 	CreatedAt         *string  `json:"created_at,omitempty"`
 	FirstReviewRequest *string `json:"first_review_request,omitempty"`
 	FirstComment      *string  `json:"first_comment,omitempty"`
@@ -76,6 +77,13 @@ type GitHubPRFile struct {
 	Additions int    `json:"additions"`
 	Deletions int    `json:"deletions"`
 	Changes   int    `json:"changes"`
+}
+
+type GitHubRelease struct {
+	Name        string `json:"name"`
+	TagName     string `json:"tag_name"`
+	CreatedAt   string `json:"created_at"`
+	PublishedAt string `json:"published_at"`
 }
 
 type PRSize struct {
@@ -158,11 +166,20 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		return nil, err
 	}
 
+	var releases []GitHubRelease
+	if pr.Merged {
+		releases, err = fetchReleases(client, token, org, repo)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	state := getPRState(pr)
 	approvers := getApprovers(reviews)
 	commentors := getCommentors(comments, pr.User.Login)
 	timestamps := getTimestamps(pr, reviews, comments, timeline)
 	prSize := calculatePRSize(files)
+	releaseName := findReleaseForMergedPR(pr, releases)
 
 	result := &PRDetails{
 		OrganizationName:     org,
@@ -176,6 +193,11 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		NumRequestedReviewers: len(pr.RequestedReviewers),
 		LinesChanged:         prSize.LinesChanged,
 		FilesChanged:         prSize.FilesChanged,
+	}
+
+	// Add release name if it exists
+	if releaseName != nil {
+		result.ReleaseName = releaseName
 	}
 
 	// Add timestamps if they exist
@@ -339,6 +361,33 @@ func fetchPRFiles(client *http.Client, token, org, repo string, prNumber int) ([
 	return files, nil
 }
 
+func fetchReleases(client *http.Client, token, org, repo string) ([]GitHubRelease, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases", org, repo)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "token "+token)
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GitHub API returned status %d for releases", resp.StatusCode)
+	}
+
+	var releases []GitHubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+		return nil, err
+	}
+
+	return releases, nil
+}
+
 func getPRState(pr *GitHubPR) string {
 	if pr.Draft {
 		return "draft"
@@ -457,4 +506,57 @@ func calculatePRSize(files []GitHubPRFile) *PRSize {
 	}
 
 	return size
+}
+
+func findReleaseForMergedPR(pr *GitHubPR, releases []GitHubRelease) *string {
+	// Only check for releases if the PR was merged
+	if !pr.Merged || pr.MergedAt == nil {
+		return nil
+	}
+
+	mergedTime, err := time.Parse(time.RFC3339, *pr.MergedAt)
+	if err != nil {
+		return nil
+	}
+
+	// Find releases published after the PR was merged
+	var validReleases []GitHubRelease
+	for _, release := range releases {
+		if release.PublishedAt == "" {
+			continue
+		}
+		
+		publishedTime, err := time.Parse(time.RFC3339, release.PublishedAt)
+		if err != nil {
+			continue
+		}
+
+		// If the release was published after the PR was merged, 
+		// this PR is likely included in this release
+		if publishedTime.After(mergedTime) {
+			validReleases = append(validReleases, release)
+		}
+	}
+
+	if len(validReleases) == 0 {
+		return nil
+	}
+
+	// Sort valid releases by published date (oldest first) to get the first release after merge
+	sort.Slice(validReleases, func(i, j int) bool {
+		timeI, errI := time.Parse(time.RFC3339, validReleases[i].PublishedAt)
+		timeJ, errJ := time.Parse(time.RFC3339, validReleases[j].PublishedAt)
+		if errI != nil || errJ != nil {
+			return false
+		}
+		return timeI.Before(timeJ)
+	})
+
+	// Return the first (earliest) release after merge
+	release := validReleases[0]
+	releaseName := release.Name
+	if releaseName == "" {
+		releaseName = release.TagName
+	}
+	return &releaseName
 }

@@ -530,6 +530,123 @@ func TestCalculatePRSize(t *testing.T) {
 	}
 }
 
+func TestFindReleaseForMergedPR(t *testing.T) {
+	tests := []struct {
+		name     string
+		pr       *GitHubPR
+		releases []GitHubRelease
+		expected *string
+	}{
+		{
+			name: "PR not merged - should return nil",
+			pr: &GitHubPR{
+				Merged:   false,
+				MergedAt: nil,
+			},
+			releases: []GitHubRelease{
+				{
+					Name:        "v1.0.0",
+					TagName:     "v1.0.0",
+					PublishedAt: "2023-01-02T12:00:00Z",
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "PR merged but no releases - should return nil",
+			pr: &GitHubPR{
+				Merged:    true,
+				MergedAt:  stringPtr("2023-01-01T12:00:00Z"),
+			},
+			releases: []GitHubRelease{},
+			expected: nil,
+		},
+		{
+			name: "PR merged, release published after merge",
+			pr: &GitHubPR{
+				Merged:    true,
+				MergedAt:  stringPtr("2023-01-01T12:00:00Z"),
+			},
+			releases: []GitHubRelease{
+				{
+					Name:        "v1.0.0",
+					TagName:     "v1.0.0",
+					PublishedAt: "2023-01-02T12:00:00Z",
+				},
+			},
+			expected: stringPtr("v1.0.0"),
+		},
+		{
+			name: "PR merged, multiple releases, find first after merge",
+			pr: &GitHubPR{
+				Merged:    true,
+				MergedAt:  stringPtr("2023-01-01T12:00:00Z"),
+			},
+			releases: []GitHubRelease{
+				{
+					Name:        "v1.1.0",
+					TagName:     "v1.1.0",
+					PublishedAt: "2023-01-05T12:00:00Z",
+				},
+				{
+					Name:        "v1.0.0",
+					TagName:     "v1.0.0",
+					PublishedAt: "2023-01-02T12:00:00Z",
+				},
+			},
+			expected: stringPtr("v1.0.0"), // First release after merge
+		},
+		{
+			name: "PR merged, release published before merge - should return nil",
+			pr: &GitHubPR{
+				Merged:    true,
+				MergedAt:  stringPtr("2023-01-02T12:00:00Z"),
+			},
+			releases: []GitHubRelease{
+				{
+					Name:        "v1.0.0",
+					TagName:     "v1.0.0",
+					PublishedAt: "2023-01-01T12:00:00Z",
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "PR merged, release with empty name uses tag name",
+			pr: &GitHubPR{
+				Merged:    true,
+				MergedAt:  stringPtr("2023-01-01T12:00:00Z"),
+			},
+			releases: []GitHubRelease{
+				{
+					Name:        "",
+					TagName:     "v1.0.0",
+					PublishedAt: "2023-01-02T12:00:00Z",
+				},
+			},
+			expected: stringPtr("v1.0.0"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := findReleaseForMergedPR(tt.pr, tt.releases)
+			
+			if tt.expected == nil {
+				if result != nil {
+					t.Errorf("findReleaseForMergedPR() = %v, want nil", *result)
+				}
+			} else {
+				if result == nil {
+					t.Errorf("findReleaseForMergedPR() = nil, want %v", *tt.expected)
+				} else if *result != *tt.expected {
+					t.Errorf("findReleaseForMergedPR() = %v, want %v", *result, *tt.expected)
+				}
+			}
+		})
+	}
+}
+
 func stringPtr(s string) *string {
 	return &s
 }
