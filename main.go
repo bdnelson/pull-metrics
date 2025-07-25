@@ -11,6 +11,7 @@ import (
 )
 
 type PRDetails struct {
+	OrganizationName  string   `json:"organization_name"`
 	RepositoryName     string   `json:"repository_name"`
 	PRNumber          int      `json:"pr_number"`
 	AuthorUsername    string   `json:"author_username"`
@@ -143,6 +144,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 	timestamps := getTimestamps(pr, reviews, comments, timeline)
 
 	result := &PRDetails{
+		OrganizationName:     org,
 		RepositoryName:        repo,
 		PRNumber:             prNumber,
 		AuthorUsername:       pr.User.Login,
