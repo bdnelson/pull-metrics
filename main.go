@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -24,6 +26,7 @@ type PRDetails struct {
 	LinesChanged      int      `json:"lines_changed"`
 	FilesChanged      int      `json:"files_changed"`
 	CommitsAfterFirstReview int `json:"commits_after_first_review"`
+	JiraIssue         string   `json:"jira_issue"`
 	ReleaseName       *string  `json:"release_name,omitempty"`
 	CreatedAt         *string  `json:"created_at,omitempty"`
 	FirstReviewRequest *string `json:"first_review_request,omitempty"`
@@ -37,9 +40,14 @@ type PRDetails struct {
 
 type GitHubPR struct {
 	Number int `json:"number"`
+	Title  string `json:"title"`
+	Body   *string `json:"body"`
 	User   struct {
 		Login string `json:"login"`
 	} `json:"user"`
+	Head struct {
+		Ref string `json:"ref"`
+	} `json:"head"`
 	State       string `json:"state"`
 	Draft       bool   `json:"draft"`
 	Merged      bool   `json:"merged"`
@@ -199,6 +207,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 	releaseName := findReleaseForMergedPR(pr, releases)
 	commitsAfterFirstReview := countCommitsAfterFirstReview(commits, timeline)
 	changeRequestsCount := countChangeRequests(reviews)
+	jiraIssue := extractJiraIssue(pr)
 
 	result := &PRDetails{
 		OrganizationName:     org,
@@ -214,6 +223,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		LinesChanged:         prSize.LinesChanged,
 		FilesChanged:         prSize.FilesChanged,
 		CommitsAfterFirstReview: commitsAfterFirstReview,
+		JiraIssue:            jiraIssue,
 		GeneratedAt:          time.Now().UTC().Format(time.RFC3339),
 	}
 
@@ -648,4 +658,30 @@ func countChangeRequests(reviews []GitHubReview) int {
 		}
 	}
 	return count
+}
+
+func extractJiraIssue(pr *GitHubPR) string {
+	// Jira issue pattern: PROJECT-123, ABC-1234, etc.
+	// Matches project key (2+ uppercase letters or alphanumeric) followed by hyphen and number
+	jiraPattern := regexp.MustCompile(`\b[A-Z][A-Z0-9]+-\d+\b`)
+	
+	// Search in PR title first
+	if matches := jiraPattern.FindStringSubmatch(pr.Title); len(matches) > 0 {
+		return strings.ToUpper(matches[0])
+	}
+	
+	// Search in PR body if available
+	if pr.Body != nil && *pr.Body != "" {
+		if matches := jiraPattern.FindStringSubmatch(*pr.Body); len(matches) > 0 {
+			return strings.ToUpper(matches[0])
+		}
+	}
+	
+	// Search in branch name (head ref)
+	if matches := jiraPattern.FindStringSubmatch(strings.ToUpper(pr.Head.Ref)); len(matches) > 0 {
+		return strings.ToUpper(matches[0])
+	}
+	
+	// If not found, return UNKNOWN
+	return "UNKNOWN"
 }

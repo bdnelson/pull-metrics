@@ -960,6 +960,150 @@ func TestCountChangeRequests(t *testing.T) {
 	}
 }
 
+func TestExtractJiraIssue(t *testing.T) {
+	tests := []struct {
+		name     string
+		pr       *GitHubPR
+		expected string
+	}{
+		{
+			name: "Jira issue in title - standard format",
+			pr: &GitHubPR{
+				Title: "ABC-123: Fix login bug",
+				Body:  nil,
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "feature/login-fix"},
+			},
+			expected: "ABC-123",
+		},
+		{
+			name: "Jira issue in title - project name format",
+			pr: &GitHubPR{
+				Title: "PROJECT-1234 Update user permissions",
+				Body:  nil,
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "main"},
+			},
+			expected: "PROJECT-1234",
+		},
+		{
+			name: "Jira issue in body",
+			pr: &GitHubPR{
+				Title: "Fix authentication issues",
+				Body:  stringPtr("This PR addresses the issue described in SECURITY-456"),
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "bugfix/auth"},
+			},
+			expected: "SECURITY-456",
+		},
+		{
+			name: "Jira issue in branch name",
+			pr: &GitHubPR{
+				Title: "Update documentation",
+				Body:  stringPtr("Updated the README file"),
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "feature/DOC-789-update-readme"},
+			},
+			expected: "DOC-789",
+		},
+		{
+			name: "Jira issue in branch name - uppercase conversion",
+			pr: &GitHubPR{
+				Title: "Minor bug fix",
+				Body:  nil,
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "bugfix/fix-123-small-issue"},
+			},
+			expected: "FIX-123",
+		},
+		{
+			name: "Multiple Jira issues - returns first found (title priority)",
+			pr: &GitHubPR{
+				Title: "ABC-111: Primary issue",
+				Body:  stringPtr("Also related to XYZ-222"),
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "feature/DEF-333-branch"},
+			},
+			expected: "ABC-111",
+		},
+		{
+			name: "Multiple Jira issues - body over branch",
+			pr: &GitHubPR{
+				Title: "General update",
+				Body:  stringPtr("Fixes PROJ-444 and related issues"),
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "feature/OTHER-555-branch"},
+			},
+			expected: "PROJ-444",
+		},
+		{
+			name: "No Jira issue found",
+			pr: &GitHubPR{
+				Title: "Simple bug fix",
+				Body:  stringPtr("Fixed a small issue with the login form"),
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "feature/login-improvements"},
+			},
+			expected: "UNKNOWN",
+		},
+		{
+			name: "Invalid format - single letter project",
+			pr: &GitHubPR{
+				Title: "A-123: This should not match",
+				Body:  nil,
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "main"},
+			},
+			expected: "UNKNOWN",
+		},
+		{
+			name: "Invalid format - no hyphen",
+			pr: &GitHubPR{
+				Title: "ABC123: Missing hyphen",
+				Body:  nil,
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "main"},
+			},
+			expected: "UNKNOWN",
+		},
+		{
+			name: "Edge case - alphanumeric project key",
+			pr: &GitHubPR{
+				Title: "WEB2-789: Second version project",
+				Body:  nil,
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "main"},
+			},
+			expected: "WEB2-789",
+		},
+		{
+			name: "Edge case - embedded in text",
+			pr: &GitHubPR{
+				Title: "Update (relates to ISSUE-999) component",
+				Body:  nil,
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "main"},
+			},
+			expected: "ISSUE-999",
+		},
+		{
+			name: "Case insensitive branch search",
+			pr: &GitHubPR{
+				Title: "Feature update",
+				Body:  nil,
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "feature/test-123-lowercase"},
+			},
+			expected: "TEST-123",
+		},
+		{
+			name: "Empty body should not cause issues",
+			pr: &GitHubPR{
+				Title: "Simple fix",
+				Body:  stringPtr(""),
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "PROJ-456-fix"},
+			},
+			expected: "PROJ-456",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractJiraIssue(tt.pr)
+			if result != tt.expected {
+				t.Errorf("extractJiraIssue() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
 func stringPtr(s string) *string {
 	return &s
 }

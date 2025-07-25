@@ -13,6 +13,7 @@ Pull Metrics retrieves detailed information about a specific GitHub Pull Request
 - **Size Analysis**: Lines of code changed and number of files modified
 - **Timeline Tracking**: Timestamps for key events (creation, first review request, first comment, approvals, merge, close)
 - **Development Activity**: Count of commits made after the first review request
+- **Jira Integration**: Extracts Jira issue identifiers from PR title, body, or branch name
 - **Release Integration**: Identifies which release (if any) includes the merged PR code
 - **Generation Metadata**: Timestamp indicating when the analysis was performed
 
@@ -104,6 +105,7 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
   "lines_changed": 0,
   "files_changed": 0,
   "commits_after_first_review": 0,
+  "jira_issue": "string",
   "release_name": "string",
   "created_at": "2023-01-01T10:00:00Z",
   "first_review_request": "2023-01-01T11:00:00Z",
@@ -133,6 +135,7 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
 | `lines_changed` | integer | Total lines of code impacted (additions + deletions) |
 | `files_changed` | integer | Number of files modified in the PR |
 | `commits_after_first_review` | integer | Number of commits made after the first review request |
+| `jira_issue` | string | Jira issue identifier associated with the PR (e.g., "ABC-123") or "UNKNOWN" if none found |
 | `release_name` | string | Name of the release containing the merged PR (optional) |
 | `created_at` | string | UTC timestamp when the PR was created (optional) |
 | `first_review_request` | string | UTC timestamp of the first review request (optional) |
@@ -209,6 +212,7 @@ The utility includes comprehensive unit tests covering:
 - PR size calculation
 - Release identification for merged PRs
 - Commit counting after review requests
+- Jira issue extraction and identification
 
 ## Error Handling
 
@@ -254,6 +258,7 @@ $ ./pull-metrics microsoft vscode 12345
   "lines_changed": 245,
   "files_changed": 7,
   "commits_after_first_review": 2,
+  "jira_issue": "VSCODE-123",
   "release_name": "v1.75.0",
   "created_at": "2023-01-15T09:30:00Z",
   "first_review_request": "2023-01-15T10:00:00Z",
