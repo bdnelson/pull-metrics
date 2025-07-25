@@ -31,6 +31,7 @@ type PRDetails struct {
 	SecondApproval    *string  `json:"second_approval,omitempty"`
 	MergedAt          *string  `json:"merged_at,omitempty"`
 	ClosedAt          *string  `json:"closed_at,omitempty"`
+	GeneratedAt       string   `json:"generated_at"`
 }
 
 type GitHubPR struct {
@@ -210,6 +211,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		LinesChanged:         prSize.LinesChanged,
 		FilesChanged:         prSize.FilesChanged,
 		CommitsAfterFirstReview: commitsAfterFirstReview,
+		GeneratedAt:          time.Now().UTC().Format(time.RFC3339),
 	}
 
 	// Add release name if it exists

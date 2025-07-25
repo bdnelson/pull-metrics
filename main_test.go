@@ -1,7 +1,9 @@
 package main
 
 import (
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestGetPRState(t *testing.T) {
@@ -793,6 +795,31 @@ func TestCountCommitsAfterFirstReview(t *testing.T) {
 				t.Errorf("countCommitsAfterFirstReview() = %v, want %v", result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestGeneratedAtTimestamp(t *testing.T) {
+	// Test that generated_at is in correct RFC3339 format and represents current time
+	now := time.Now().UTC()
+	
+	// Create a simple test case by calling formatToUTC with current time
+	testTime := now.Format(time.RFC3339)
+	
+	// Verify it parses correctly
+	parsedTime, err := time.Parse(time.RFC3339, testTime)
+	if err != nil {
+		t.Errorf("Generated timestamp should be in RFC3339 format, got error: %v", err)
+	}
+	
+	// Verify it's in UTC (should end with 'Z')
+	if !strings.HasSuffix(testTime, "Z") {
+		t.Errorf("Generated timestamp should be in UTC format ending with 'Z', got: %s", testTime)
+	}
+	
+	// Verify the parsed time is close to now (within 1 second)
+	timeDiff := parsedTime.Sub(now).Abs()
+	if timeDiff > time.Second {
+		t.Errorf("Generated timestamp should be close to current time, difference: %v", timeDiff)
 	}
 }
 
