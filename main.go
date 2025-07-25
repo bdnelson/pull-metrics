@@ -22,6 +22,7 @@ type PRDetails struct {
 	NumRequestedReviewers int  `json:"num_requested_reviewers"`
 	LinesChanged      int      `json:"lines_changed"`
 	FilesChanged      int      `json:"files_changed"`
+	CommitsAfterFirstReview int `json:"commits_after_first_review"`
 	ReleaseName       *string  `json:"release_name,omitempty"`
 	CreatedAt         *string  `json:"created_at,omitempty"`
 	FirstReviewRequest *string `json:"first_review_request,omitempty"`
@@ -77,6 +78,15 @@ type GitHubPRFile struct {
 	Additions int    `json:"additions"`
 	Deletions int    `json:"deletions"`
 	Changes   int    `json:"changes"`
+}
+
+type GitHubCommit struct {
+	SHA    string `json:"sha"`
+	Commit struct {
+		Author struct {
+			Date string `json:"date"`
+		} `json:"author"`
+	} `json:"commit"`
 }
 
 type GitHubRelease struct {
@@ -166,6 +176,11 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		return nil, err
 	}
 
+	commits, err := fetchPRCommits(client, token, org, repo, prNumber)
+	if err != nil {
+		return nil, err
+	}
+
 	var releases []GitHubRelease
 	if pr.Merged {
 		releases, err = fetchReleases(client, token, org, repo)
@@ -180,6 +195,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 	timestamps := getTimestamps(pr, reviews, comments, timeline)
 	prSize := calculatePRSize(files)
 	releaseName := findReleaseForMergedPR(pr, releases)
+	commitsAfterFirstReview := countCommitsAfterFirstReview(commits, timeline)
 
 	result := &PRDetails{
 		OrganizationName:     org,
@@ -193,6 +209,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		NumRequestedReviewers: len(pr.RequestedReviewers),
 		LinesChanged:         prSize.LinesChanged,
 		FilesChanged:         prSize.FilesChanged,
+		CommitsAfterFirstReview: commitsAfterFirstReview,
 	}
 
 	// Add release name if it exists
@@ -388,6 +405,33 @@ func fetchReleases(client *http.Client, token, org, repo string) ([]GitHubReleas
 	return releases, nil
 }
 
+func fetchPRCommits(client *http.Client, token, org, repo string, prNumber int) ([]GitHubCommit, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d/commits", org, repo, prNumber)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "token "+token)
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GitHub API returned status %d for PR commits", resp.StatusCode)
+	}
+
+	var commits []GitHubCommit
+	if err := json.NewDecoder(resp.Body).Decode(&commits); err != nil {
+		return nil, err
+	}
+
+	return commits, nil
+}
+
 func getPRState(pr *GitHubPR) string {
 	if pr.Draft {
 		return "draft"
@@ -559,4 +603,34 @@ func findReleaseForMergedPR(pr *GitHubPR, releases []GitHubRelease) *string {
 		releaseName = release.TagName
 	}
 	return &releaseName
+}
+
+func countCommitsAfterFirstReview(commits []GitHubCommit, timeline []GitHubTimelineEvent) int {
+	// Find the first review request timestamp
+	var firstReviewRequestTime *time.Time
+	for _, event := range timeline {
+		if event.Event == "review_requested" {
+			if t, err := time.Parse(time.RFC3339, event.CreatedAt); err == nil {
+				firstReviewRequestTime = &t
+				break
+			}
+		}
+	}
+
+	// If no review request was made, return 0
+	if firstReviewRequestTime == nil {
+		return 0
+	}
+
+	// Count commits made after the first review request
+	count := 0
+	for _, commit := range commits {
+		if commitTime, err := time.Parse(time.RFC3339, commit.Commit.Author.Date); err == nil {
+			if commitTime.After(*firstReviewRequestTime) {
+				count++
+			}
+		}
+	}
+
+	return count
 }

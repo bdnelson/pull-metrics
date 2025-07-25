@@ -647,6 +647,155 @@ func TestFindReleaseForMergedPR(t *testing.T) {
 	}
 }
 
+func TestCountCommitsAfterFirstReview(t *testing.T) {
+	tests := []struct {
+		name     string
+		commits  []GitHubCommit
+		timeline []GitHubTimelineEvent
+		expected int
+	}{
+		{
+			name:     "no timeline events - should return 0",
+			commits:  []GitHubCommit{},
+			timeline: []GitHubTimelineEvent{},
+			expected: 0,
+		},
+		{
+			name: "no review request event - should return 0",
+			commits: []GitHubCommit{
+				{
+					SHA: "abc123",
+					Commit: struct {
+						Author struct {
+							Date string `json:"date"`
+						} `json:"author"`
+					}{
+						Author: struct {
+							Date string `json:"date"`
+						}{Date: "2023-01-02T12:00:00Z"},
+					},
+				},
+			},
+			timeline: []GitHubTimelineEvent{
+				{
+					Event:     "commented",
+					CreatedAt: "2023-01-01T11:00:00Z",
+				},
+			},
+			expected: 0,
+		},
+		{
+			name: "commits before review request - should return 0",
+			commits: []GitHubCommit{
+				{
+					SHA: "abc123",
+					Commit: struct {
+						Author struct {
+							Date string `json:"date"`
+						} `json:"author"`
+					}{
+						Author: struct {
+							Date string `json:"date"`
+						}{Date: "2023-01-01T10:00:00Z"},
+					},
+				},
+			},
+			timeline: []GitHubTimelineEvent{
+				{
+					Event:     "review_requested",
+					CreatedAt: "2023-01-01T11:00:00Z",
+				},
+			},
+			expected: 0,
+		},
+		{
+			name: "commits after review request - should count them",
+			commits: []GitHubCommit{
+				{
+					SHA: "abc123",
+					Commit: struct {
+						Author struct {
+							Date string `json:"date"`
+						} `json:"author"`
+					}{
+						Author: struct {
+							Date string `json:"date"`
+						}{Date: "2023-01-01T10:00:00Z"}, // Before review request
+					},
+				},
+				{
+					SHA: "def456",
+					Commit: struct {
+						Author struct {
+							Date string `json:"date"`
+						} `json:"author"`
+					}{
+						Author: struct {
+							Date string `json:"date"`
+						}{Date: "2023-01-01T12:00:00Z"}, // After review request
+					},
+				},
+				{
+					SHA: "ghi789",
+					Commit: struct {
+						Author struct {
+							Date string `json:"date"`
+						} `json:"author"`
+					}{
+						Author: struct {
+							Date string `json:"date"`
+						}{Date: "2023-01-01T13:00:00Z"}, // After review request
+					},
+				},
+			},
+			timeline: []GitHubTimelineEvent{
+				{
+					Event:     "review_requested",
+					CreatedAt: "2023-01-01T11:00:00Z",
+				},
+			},
+			expected: 2,
+		},
+		{
+			name: "multiple review requests - should use first one",
+			commits: []GitHubCommit{
+				{
+					SHA: "abc123",
+					Commit: struct {
+						Author struct {
+							Date string `json:"date"`
+						} `json:"author"`
+					}{
+						Author: struct {
+							Date string `json:"date"`
+						}{Date: "2023-01-01T12:00:00Z"}, // After first review request
+					},
+				},
+			},
+			timeline: []GitHubTimelineEvent{
+				{
+					Event:     "review_requested",
+					CreatedAt: "2023-01-01T11:00:00Z", // First review request
+				},
+				{
+					Event:     "review_requested",
+					CreatedAt: "2023-01-01T14:00:00Z", // Second review request
+				},
+			},
+			expected: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := countCommitsAfterFirstReview(tt.commits, tt.timeline)
+			if result != tt.expected {
+				t.Errorf("countCommitsAfterFirstReview() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
 func stringPtr(s string) *string {
 	return &s
 }
