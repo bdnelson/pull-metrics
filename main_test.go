@@ -432,6 +432,104 @@ func TestGetTimestamps(t *testing.T) {
 	}
 }
 
+func TestCalculatePRSize(t *testing.T) {
+	tests := []struct {
+		name             string
+		files            []GitHubPRFile
+		expectedLines    int
+		expectedFiles    int
+	}{
+		{
+			name:          "no files changed",
+			files:         []GitHubPRFile{},
+			expectedLines: 0,
+			expectedFiles: 0,
+		},
+		{
+			name: "single file with additions and deletions",
+			files: []GitHubPRFile{
+				{
+					Filename:  "main.go",
+					Status:    "modified",
+					Additions: 10,
+					Deletions: 5,
+					Changes:   15,
+				},
+			},
+			expectedLines: 15, // 10 additions + 5 deletions
+			expectedFiles: 1,
+		},
+		{
+			name: "multiple files with various changes",
+			files: []GitHubPRFile{
+				{
+					Filename:  "main.go",
+					Status:    "modified",
+					Additions: 20,
+					Deletions: 5,
+					Changes:   25,
+				},
+				{
+					Filename:  "utils.go",
+					Status:    "added",
+					Additions: 50,
+					Deletions: 0,
+					Changes:   50,
+				},
+				{
+					Filename:  "old_file.go",
+					Status:    "removed",
+					Additions: 0,
+					Deletions: 30,
+					Changes:   30,
+				},
+			},
+			expectedLines: 105, // 20+5 + 50+0 + 0+30
+			expectedFiles: 3,
+		},
+		{
+			name: "files with only additions",
+			files: []GitHubPRFile{
+				{
+					Filename:  "new_feature.go",
+					Status:    "added",
+					Additions: 100,
+					Deletions: 0,
+					Changes:   100,
+				},
+			},
+			expectedLines: 100,
+			expectedFiles: 1,
+		},
+		{
+			name: "files with only deletions",
+			files: []GitHubPRFile{
+				{
+					Filename:  "deprecated.go",
+					Status:    "removed",
+					Additions: 0,
+					Deletions: 75,
+					Changes:   75,
+				},
+			},
+			expectedLines: 75,
+			expectedFiles: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := calculatePRSize(tt.files)
+			if result.LinesChanged != tt.expectedLines {
+				t.Errorf("calculatePRSize() LinesChanged = %d, want %d", result.LinesChanged, tt.expectedLines)
+			}
+			if result.FilesChanged != tt.expectedFiles {
+				t.Errorf("calculatePRSize() FilesChanged = %d, want %d", result.FilesChanged, tt.expectedFiles)
+			}
+		})
+	}
+}
+
 func stringPtr(s string) *string {
 	return &s
 }

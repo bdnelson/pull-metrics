@@ -20,6 +20,8 @@ type PRDetails struct {
 	NumCommentors     int      `json:"num_commentors"`
 	NumApprovers      int      `json:"num_approvers"`
 	NumRequestedReviewers int  `json:"num_requested_reviewers"`
+	LinesChanged      int      `json:"lines_changed"`
+	FilesChanged      int      `json:"files_changed"`
 	CreatedAt         *string  `json:"created_at,omitempty"`
 	FirstReviewRequest *string `json:"first_review_request,omitempty"`
 	FirstComment      *string  `json:"first_comment,omitempty"`
@@ -66,6 +68,19 @@ type GitHubTimelineEvent struct {
 	Actor     struct {
 		Login string `json:"login"`
 	} `json:"actor"`
+}
+
+type GitHubPRFile struct {
+	Filename  string `json:"filename"`
+	Status    string `json:"status"`
+	Additions int    `json:"additions"`
+	Deletions int    `json:"deletions"`
+	Changes   int    `json:"changes"`
+}
+
+type PRSize struct {
+	LinesChanged int
+	FilesChanged int
 }
 
 type Timestamps struct {
@@ -138,10 +153,16 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		return nil, err
 	}
 
+	files, err := fetchPRFiles(client, token, org, repo, prNumber)
+	if err != nil {
+		return nil, err
+	}
+
 	state := getPRState(pr)
 	approvers := getApprovers(reviews)
 	commentors := getCommentors(comments, pr.User.Login)
 	timestamps := getTimestamps(pr, reviews, comments, timeline)
+	prSize := calculatePRSize(files)
 
 	result := &PRDetails{
 		OrganizationName:     org,
@@ -153,6 +174,8 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		NumCommentors:        len(commentors),
 		NumApprovers:         len(approvers),
 		NumRequestedReviewers: len(pr.RequestedReviewers),
+		LinesChanged:         prSize.LinesChanged,
+		FilesChanged:         prSize.FilesChanged,
 	}
 
 	// Add timestamps if they exist
@@ -289,6 +312,33 @@ func fetchTimeline(client *http.Client, token, org, repo string, prNumber int) (
 	return timeline, nil
 }
 
+func fetchPRFiles(client *http.Client, token, org, repo string, prNumber int) ([]GitHubPRFile, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d/files", org, repo, prNumber)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "token "+token)
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GitHub API returned status %d for PR files", resp.StatusCode)
+	}
+
+	var files []GitHubPRFile
+	if err := json.NewDecoder(resp.Body).Decode(&files); err != nil {
+		return nil, err
+	}
+
+	return files, nil
+}
+
 func getPRState(pr *GitHubPR) string {
 	if pr.Draft {
 		return "draft"
@@ -393,4 +443,18 @@ func formatToUTC(timestamp string) string {
 		return timestamp // Return original if parsing fails
 	}
 	return t.UTC().Format(time.RFC3339)
+}
+
+func calculatePRSize(files []GitHubPRFile) *PRSize {
+	size := &PRSize{
+		LinesChanged: 0,
+		FilesChanged: len(files),
+	}
+
+	for _, file := range files {
+		// Count total lines changed (additions + deletions)
+		size.LinesChanged += file.Additions + file.Deletions
+	}
+
+	return size
 }
