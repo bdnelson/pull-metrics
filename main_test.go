@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -1412,6 +1413,72 @@ func TestCalculatePRMetrics(t *testing.T) {
 			result := calculatePRMetrics(tt.pr, tt.reviews, tt.comments, tt.timeline, tt.timestamps)
 			tt.validate(t, result)
 		})
+	}
+}
+
+func TestJSONOutputStructure(t *testing.T) {
+	// Create a sample PRDetails with timestamps
+	prDetails := &PRDetails{
+		OrganizationName: "test-org",
+		RepositoryName:   "test-repo",
+		PRNumber:         123,
+		PRTitle:          "Test PR",
+		AuthorUsername:   "author",
+		State:            "open",
+		JiraIssue:        "TEST-123",
+		Timestamps: &PRTimestamps{
+			CreatedAt:         stringPtr("2023-01-01T10:00:00Z"),
+			FirstReviewRequest: stringPtr("2023-01-01T11:00:00Z"),
+			FirstComment:      stringPtr("2023-01-01T12:00:00Z"),
+			FirstApproval:     stringPtr("2023-01-01T15:00:00Z"),
+			GeneratedAt:       "2023-01-01T20:00:00Z",
+		},
+	}
+
+	// Marshal to JSON
+	jsonBytes, err := json.Marshal(prDetails)
+	if err != nil {
+		t.Fatalf("Failed to marshal JSON: %v", err)
+	}
+
+	// Unmarshal to check structure
+	var result map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	// Verify timestamps object exists
+	timestamps, ok := result["timestamps"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected timestamps to be an object, got %T", result["timestamps"])
+	}
+
+	// Verify individual timestamp fields
+	if timestamps["created_at"] != "2023-01-01T10:00:00Z" {
+		t.Errorf("Expected created_at to be '2023-01-01T10:00:00Z', got %v", timestamps["created_at"])
+	}
+	if timestamps["first_review_request"] != "2023-01-01T11:00:00Z" {
+		t.Errorf("Expected first_review_request to be '2023-01-01T11:00:00Z', got %v", timestamps["first_review_request"])
+	}
+	if timestamps["first_comment"] != "2023-01-01T12:00:00Z" {
+		t.Errorf("Expected first_comment to be '2023-01-01T12:00:00Z', got %v", timestamps["first_comment"])
+	}
+	if timestamps["first_approval"] != "2023-01-01T15:00:00Z" {
+		t.Errorf("Expected first_approval to be '2023-01-01T15:00:00Z', got %v", timestamps["first_approval"])
+	}
+	if timestamps["generated_at"] != "2023-01-01T20:00:00Z" {
+		t.Errorf("Expected generated_at to be '2023-01-01T20:00:00Z', got %v", timestamps["generated_at"])
+	}
+
+	// Verify that individual timestamp fields are not at the root level
+	if _, exists := result["created_at"]; exists {
+		t.Error("created_at should not exist at root level")
+	}
+	if _, exists := result["first_review_request"]; exists {
+		t.Error("first_review_request should not exist at root level")
+	}
+	if _, exists := result["generated_at"]; exists {
+		t.Error("generated_at should not exist at root level")
 	}
 }
 

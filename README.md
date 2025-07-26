@@ -117,14 +117,16 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
     "reviewer_participation_ratio": 0.75
   },
   "release_name": "string",
-  "created_at": "2023-01-01T10:00:00Z",
-  "first_review_request": "2023-01-01T11:00:00Z",
-  "first_comment": "2023-01-01T12:00:00Z",
-  "first_approval": "2023-01-01T15:00:00Z",
-  "second_approval": "2023-01-01T16:00:00Z",
-  "merged_at": "2023-01-01T18:00:00Z",
-  "closed_at": "2023-01-01T19:00:00Z",
-  "generated_at": "2025-01-25T14:30:45Z"
+  "timestamps": {
+    "created_at": "2023-01-01T10:00:00Z",
+    "first_review_request": "2023-01-01T11:00:00Z",
+    "first_comment": "2023-01-01T12:00:00Z",
+    "first_approval": "2023-01-01T15:00:00Z",
+    "second_approval": "2023-01-01T16:00:00Z",
+    "merged_at": "2023-01-01T18:00:00Z",
+    "closed_at": "2023-01-01T19:00:00Z",
+    "generated_at": "2025-01-25T14:30:45Z"
+  }
 }
 ```
 
@@ -151,6 +153,14 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
 | `jira_issue` | string | Jira issue identifier associated with the PR (e.g., "ABC-123") or "UNKNOWN" if none found |
 | `metrics` | object | Calculated performance metrics for the PR review process (optional) |
 | `release_name` | string | Name of the release containing the merged PR (optional) |
+| `timestamps` | object | Collection of all timestamp information for the PR lifecycle (optional) |
+
+### Timestamps Object
+
+The `timestamps` object contains all timestamp information related to the PR lifecycle:
+
+| Field | Type | Description |
+|-------|------|-------------|
 | `created_at` | string | UTC timestamp when the PR was created (optional) |
 | `first_review_request` | string | UTC timestamp of the first review request (optional) |
 | `first_comment` | string | UTC timestamp of the first comment (optional) |
@@ -180,7 +190,7 @@ The `metrics` object contains calculated performance indicators for the PR revie
 ### Optional Fields
 
 Fields marked as "optional" are only included in the output when applicable:
-- Timestamps are excluded if the corresponding event never occurred
+- `timestamps` object is included when any timestamp information is available; individual timestamp fields within the object are excluded if the corresponding event never occurred
 - `release_name` is only included for merged PRs where a matching release is found
 - `metrics` object is excluded if no calculable metrics are available
 - Individual metric fields are excluded if calculation requirements are not met
@@ -303,12 +313,14 @@ $ ./pull-metrics microsoft vscode 12345
     "reviewer_participation_ratio": 1.0
   },
   "release_name": "v1.75.0",
-  "created_at": "2023-01-15T09:30:00Z",
-  "first_review_request": "2023-01-15T10:00:00Z",
-  "first_comment": "2023-01-15T11:30:00Z",
-  "first_approval": "2023-01-16T14:00:00Z",
-  "merged_at": "2023-01-16T15:30:00Z",
-  "generated_at": "2025-01-25T14:30:45Z"
+  "timestamps": {
+    "created_at": "2023-01-15T09:30:00Z",
+    "first_review_request": "2023-01-15T10:00:00Z",
+    "first_comment": "2023-01-15T11:30:00Z",
+    "first_approval": "2023-01-16T14:00:00Z",
+    "merged_at": "2023-01-16T15:30:00Z",
+    "generated_at": "2025-01-25T14:30:45Z"
+  }
 }
 ```
 

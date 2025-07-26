@@ -32,14 +32,7 @@ type PRDetails struct {
 	JiraIssue         string   `json:"jira_issue"`
 	Metrics           *PRMetrics `json:"metrics,omitempty"`
 	ReleaseName       *string  `json:"release_name,omitempty"`
-	CreatedAt         *string  `json:"created_at,omitempty"`
-	FirstReviewRequest *string `json:"first_review_request,omitempty"`
-	FirstComment      *string  `json:"first_comment,omitempty"`
-	FirstApproval     *string  `json:"first_approval,omitempty"`
-	SecondApproval    *string  `json:"second_approval,omitempty"`
-	MergedAt          *string  `json:"merged_at,omitempty"`
-	ClosedAt          *string  `json:"closed_at,omitempty"`
-	GeneratedAt       string   `json:"generated_at"`
+	Timestamps        *PRTimestamps `json:"timestamps,omitempty"`
 }
 
 type GitHubPR struct {
@@ -125,6 +118,17 @@ type Timestamps struct {
 	SecondApproval    *string
 	MergedAt          *string
 	ClosedAt          *string
+}
+
+type PRTimestamps struct {
+	CreatedAt         *string `json:"created_at,omitempty"`
+	FirstReviewRequest *string `json:"first_review_request,omitempty"`
+	FirstComment      *string `json:"first_comment,omitempty"`
+	FirstApproval     *string `json:"first_approval,omitempty"`
+	SecondApproval    *string `json:"second_approval,omitempty"`
+	MergedAt          *string `json:"merged_at,omitempty"`
+	ClosedAt          *string `json:"closed_at,omitempty"`
+	GeneratedAt       string  `json:"generated_at"`
 }
 
 type PRMetrics struct {
@@ -242,7 +246,6 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		CommitsAfterFirstReview: commitsAfterFirstReview,
 		JiraIssue:            jiraIssue,
 		Metrics:              metrics,
-		GeneratedAt:          time.Now().UTC().Format(time.RFC3339),
 	}
 
 	// Add release name if it exists
@@ -250,28 +253,19 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		result.ReleaseName = releaseName
 	}
 
-	// Add timestamps if they exist
-	if timestamps.CreatedAt != nil {
-		result.CreatedAt = timestamps.CreatedAt
+	// Create timestamps object
+	prTimestamps := &PRTimestamps{
+		CreatedAt:         timestamps.CreatedAt,
+		FirstReviewRequest: timestamps.FirstReviewRequest,
+		FirstComment:      timestamps.FirstComment,
+		FirstApproval:     timestamps.FirstApproval,
+		SecondApproval:    timestamps.SecondApproval,
+		MergedAt:          timestamps.MergedAt,
+		ClosedAt:          timestamps.ClosedAt,
+		GeneratedAt:       time.Now().UTC().Format(time.RFC3339),
 	}
-	if timestamps.FirstReviewRequest != nil {
-		result.FirstReviewRequest = timestamps.FirstReviewRequest
-	}
-	if timestamps.FirstComment != nil {
-		result.FirstComment = timestamps.FirstComment
-	}
-	if timestamps.FirstApproval != nil {
-		result.FirstApproval = timestamps.FirstApproval
-	}
-	if timestamps.SecondApproval != nil {
-		result.SecondApproval = timestamps.SecondApproval
-	}
-	if timestamps.MergedAt != nil {
-		result.MergedAt = timestamps.MergedAt
-	}
-	if timestamps.ClosedAt != nil {
-		result.ClosedAt = timestamps.ClosedAt
-	}
+	
+	result.Timestamps = prTimestamps
 
 	return result, nil
 }
