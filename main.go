@@ -24,10 +24,10 @@ type PRDetails struct {
 	PRNodeID          string   `json:"pr_node_id"`
 	AuthorUsername    string   `json:"author_username"`
 	ApproverUsernames []string `json:"approver_usernames"`
-	CommentorUsernames []string `json:"commentor_usernames"`
+	CommenterUsernames []string `json:"commenter_usernames"`
 	State             string   `json:"state"`
 	NumComments       int      `json:"num_comments"`
-	NumCommentors     int      `json:"num_commentors"`
+	NumCommenters     int      `json:"num_commenters"`
 	NumApprovers      int      `json:"num_approvers"`
 	NumRequestedReviewers int  `json:"num_requested_reviewers"`
 	ChangeRequestsCount int    `json:"change_requests_count"`
@@ -246,8 +246,8 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 
 	state := getPRState(pr)
 	approvers := getApprovers(reviews)
-	commentors := getCommentors(comments, reviewComments, pr.User.Login)
-	commentorUsernames := getCommentorUsernames(commentors)
+	commenters := getCommenters(comments, reviewComments, pr.User.Login)
+	commenterUsernames := getCommenterUsernames(commenters)
 	numComments := countTotalComments(comments, reviewComments)
 	numRequestedReviewers := countAllRequestedReviewers(pr, reviews)
 	timestamps := getTimestamps(pr, reviews, comments, reviewComments, timeline, commits)
@@ -268,10 +268,10 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		PRNodeID:             pr.NodeID,
 		AuthorUsername:       pr.User.Login,
 		ApproverUsernames:    approvers,
-		CommentorUsernames:   commentorUsernames,
+		CommenterUsernames:   commenterUsernames,
 		State:                state,
 		NumComments:          numComments,
-		NumCommentors:        len(commentors),
+		NumCommenters:        len(commenters),
 		NumApprovers:         len(approvers),
 		NumRequestedReviewers: numRequestedReviewers,
 		ChangeRequestsCount:  changeRequestsCount,
@@ -548,33 +548,33 @@ func getApprovers(reviews []GitHubReview) []string {
 	return result
 }
 
-func getCommentors(comments []GitHubComment, reviewComments []GitHubReviewComment, authorUsername string) map[string]bool {
-	commentors := make(map[string]bool)
+func getCommenters(comments []GitHubComment, reviewComments []GitHubReviewComment, authorUsername string) map[string]bool {
+	commenters := make(map[string]bool)
 	
 	// Process regular comments
 	for _, comment := range comments {
 		if comment.User.Login != authorUsername {
-			commentors[comment.User.Login] = true
+			commenters[comment.User.Login] = true
 		}
 	}
 	
 	// Process review comments
 	for _, reviewComment := range reviewComments {
 		if reviewComment.User.Login != authorUsername {
-			commentors[reviewComment.User.Login] = true
+			commenters[reviewComment.User.Login] = true
 		}
 	}
 	
-	return commentors
+	return commenters
 }
 
 func countTotalComments(comments []GitHubComment, reviewComments []GitHubReviewComment) int {
 	return len(comments) + len(reviewComments)
 }
 
-func getCommentorUsernames(commentors map[string]bool) []string {
-	usernames := make([]string, 0, len(commentors))
-	for username := range commentors {
+func getCommenterUsernames(commenters map[string]bool) []string {
+	usernames := make([]string, 0, len(commenters))
+	for username := range commenters {
 		usernames = append(usernames, username)
 	}
 	sort.Strings(usernames) // Sort for consistent output

@@ -9,7 +9,7 @@ Pull Metrics retrieves detailed information about a specific GitHub Pull Request
 ## Features
 
 - **Basic PR Information**: Organization, repository, PR number, title, web URL, node ID, author, state, bot detection
-- **Review Metrics**: Number of commentors, approvers, requested reviewers, change requests, and their usernames
+- **Review Metrics**: Number of commenters, approvers, requested reviewers, change requests, and their usernames
 - **Size Analysis**: Lines of code changed and number of files modified
 - **Timeline Tracking**: Timestamps for key events (first commit, creation, first review request, first comment, approvals, merge, close)
 - **Development Activity**: Count of commits made after the first review request
@@ -140,10 +140,10 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
   "pr_node_id": "string",
   "author_username": "string",
   "approver_usernames": ["string"],
-  "commentor_usernames": ["string"],
+  "commenter_usernames": ["string"],
   "state": "string",
   "num_comments": 0,
-  "num_commentors": 0,
+  "num_commenters": 0,
   "num_approvers": 0,
   "num_requested_reviewers": 0,
   "change_requests_count": 0,
@@ -187,10 +187,10 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
 | `pr_node_id` | string | GitHub GraphQL node ID for the Pull Request |
 | `author_username` | string | Username of the PR author |
 | `approver_usernames` | array | List of usernames who approved the PR |
-| `commentor_usernames` | array | List of usernames who commented on the PR from both conversation comments and review comments (excluding author), sorted alphabetically |
+| `commenter_usernames` | array | List of usernames who commented on the PR from both conversation comments and review comments (excluding author), sorted alphabetically |
 | `state` | string | PR state: "draft", "open", "merged", or "closed" |
 | `num_comments` | integer | Total number of comments on the PR (both conversation comments and review comments) |
-| `num_commentors` | integer | Number of unique commentors from both conversation comments and review comments (excluding author) |
+| `num_commenters` | integer | Number of unique commenters from both conversation comments and review comments (excluding author) |
 | `num_approvers` | integer | Number of users who approved the PR |
 | `num_requested_reviewers` | integer | Total number of users who were requested to review the PR (includes both those who have reviewed and those who haven't) |
 | `change_requests_count` | integer | Number of reviews that requested changes |
@@ -341,11 +341,11 @@ pull-metrics/
 The utility includes comprehensive unit tests covering:
 - PR state determination
 - Approver identification and counting
-- Commentor counting with author exclusion (including both conversation and review comments)
+- Commenter counting with author exclusion (including both conversation and review comments)
 - Comment counting (total comment count from both sources)
 - Change request comments counting (comments from users who submitted change requests)
 - Comprehensive requested reviewers counting (includes both reviewed and pending reviewers)
-- Commentor username extraction and sorting
+- Commenter username extraction and sorting
 - UTC timestamp formatting
 - Timestamp extraction from PR events (including review comments for first comment detection)
 - PR size calculation
@@ -397,10 +397,10 @@ $ ./pull-metrics microsoft vscode 12345
   "pr_node_id": "PR_kwDOABCD123_node456",
   "author_username": "contributor",
   "approver_usernames": ["maintainer1", "maintainer2"],
-  "commentor_usernames": ["reviewer1", "reviewer2", "user1"],
+  "commenter_usernames": ["reviewer1", "reviewer2", "user1"],
   "state": "merged",
   "num_comments": 12,
-  "num_commentors": 3,
+  "num_commenters": 3,
   "num_approvers": 2,
   "num_requested_reviewers": 2,
   "change_requests_count": 1,

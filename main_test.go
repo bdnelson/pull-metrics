@@ -201,7 +201,7 @@ func TestGetApprovers(t *testing.T) {
 	}
 }
 
-func TestGetCommentors(t *testing.T) {
+func TestGetCommenters(t *testing.T) {
 	tests := []struct {
 		name           string
 		comments       []GitHubComment
@@ -215,7 +215,7 @@ func TestGetCommentors(t *testing.T) {
 			expectedCount:  0,
 		},
 		{
-			name: "single commentor",
+			name: "single commenter",
 			comments: []GitHubComment{
 				{
 					User: struct {
@@ -228,7 +228,7 @@ func TestGetCommentors(t *testing.T) {
 			expectedCount:  1,
 		},
 		{
-			name: "multiple commentors",
+			name: "multiple commenters",
 			comments: []GitHubComment{
 				{
 					User: struct {
@@ -272,7 +272,7 @@ func TestGetCommentors(t *testing.T) {
 			expectedCount:  2,
 		},
 		{
-			name: "duplicate commentor",
+			name: "duplicate commenter",
 			comments: []GitHubComment{
 				{
 					User: struct {
@@ -294,9 +294,9 @@ func TestGetCommentors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := getCommentors(tt.comments, []GitHubReviewComment{}, tt.authorUsername)
+			result := getCommenters(tt.comments, []GitHubReviewComment{}, tt.authorUsername)
 			if len(result) != tt.expectedCount {
-				t.Errorf("getCommentors() returned %d commentors, want %d", len(result), tt.expectedCount)
+				t.Errorf("getCommenters() returned %d commenters, want %d", len(result), tt.expectedCount)
 			}
 		})
 	}
@@ -1787,7 +1787,7 @@ func TestIsBot(t *testing.T) {
 	}
 }
 
-func TestGetCommentorsWithReviewComments(t *testing.T) {
+func TestGetCommentersWithReviewComments(t *testing.T) {
 	tests := []struct {
 		name           string
 		comments       []GitHubComment
@@ -1870,15 +1870,15 @@ func TestGetCommentorsWithReviewComments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := getCommentors(tt.comments, tt.reviewComments, tt.authorUsername)
+			result := getCommenters(tt.comments, tt.reviewComments, tt.authorUsername)
 			
 			if len(result) != tt.expectedCount {
-				t.Errorf("getCommentors() returned %d commentors, want %d", len(result), tt.expectedCount)
+				t.Errorf("getCommenters() returned %d commenters, want %d", len(result), tt.expectedCount)
 			}
 			
 			for _, expectedUser := range tt.expectedUsers {
 				if !result[expectedUser] {
-					t.Errorf("Expected user %s not found in commentors", expectedUser)
+					t.Errorf("Expected user %s not found in commenters", expectedUser)
 				}
 			}
 		})
@@ -2029,27 +2029,27 @@ func TestCountTotalComments(t *testing.T) {
 	}
 }
 
-func TestGetCommentorUsernames(t *testing.T) {
+func TestGetCommenterUsernames(t *testing.T) {
 	tests := []struct {
 		name       string
-		commentors map[string]bool
+		commenters map[string]bool
 		expected   []string
 	}{
 		{
-			name:       "no commentors",
-			commentors: map[string]bool{},
+			name:       "no commenters",
+			commenters: map[string]bool{},
 			expected:   []string{},
 		},
 		{
-			name: "single commentor",
-			commentors: map[string]bool{
+			name: "single commenter",
+			commenters: map[string]bool{
 				"user1": true,
 			},
 			expected: []string{"user1"},
 		},
 		{
-			name: "multiple commentors - should be sorted",
-			commentors: map[string]bool{
+			name: "multiple commenters - should be sorted",
+			commenters: map[string]bool{
 				"user3": true,
 				"user1": true,
 				"user2": true,
@@ -2057,8 +2057,8 @@ func TestGetCommentorUsernames(t *testing.T) {
 			expected: []string{"user1", "user2", "user3"},
 		},
 		{
-			name: "commentors with various usernames",
-			commentors: map[string]bool{
+			name: "commenters with various usernames",
+			commenters: map[string]bool{
 				"z-user":      true,
 				"a-user":      true,
 				"middle-user": true,
@@ -2069,16 +2069,16 @@ func TestGetCommentorUsernames(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := getCommentorUsernames(tt.commentors)
+			result := getCommenterUsernames(tt.commenters)
 			
 			if len(result) != len(tt.expected) {
-				t.Errorf("getCommentorUsernames() returned %d usernames, want %d", len(result), len(tt.expected))
+				t.Errorf("getCommenterUsernames() returned %d usernames, want %d", len(result), len(tt.expected))
 				return
 			}
 			
 			for i, username := range result {
 				if username != tt.expected[i] {
-					t.Errorf("getCommentorUsernames()[%d] = %s, want %s", i, username, tt.expected[i])
+					t.Errorf("getCommenterUsernames()[%d] = %s, want %s", i, username, tt.expected[i])
 				}
 			}
 		})
@@ -2093,10 +2093,10 @@ func TestPRDetailsWithCommentFields(t *testing.T) {
 		PRNumber:           123,
 		PRTitle:            "Test PR with comments",
 		AuthorUsername:     "author",
-		CommentorUsernames: []string{"reviewer1", "reviewer2", "user1"},
+		CommenterUsernames: []string{"reviewer1", "reviewer2", "user1"},
 		State:              "open",
 		NumComments:        7,
-		NumCommentors:      3,
+		NumCommenters:      3,
 		NumApprovers:       2,
 		JiraIssue:          "TEST-123",
 		IsBot:              false,
@@ -2120,26 +2120,26 @@ func TestPRDetailsWithCommentFields(t *testing.T) {
 		t.Errorf("Expected num_comments to be 7, got %v", result["num_comments"])
 	}
 
-	// Verify commentor_usernames field
-	commentorUsernames, ok := result["commentor_usernames"].([]interface{})
+	// Verify commenter_usernames field
+	commenterUsernames, ok := result["commenter_usernames"].([]interface{})
 	if !ok {
-		t.Fatalf("Expected commentor_usernames to be an array, got %T", result["commentor_usernames"])
+		t.Fatalf("Expected commenter_usernames to be an array, got %T", result["commenter_usernames"])
 	}
 	
-	if len(commentorUsernames) != 3 {
-		t.Errorf("Expected commentor_usernames to have 3 elements, got %d", len(commentorUsernames))
+	if len(commenterUsernames) != 3 {
+		t.Errorf("Expected commenter_usernames to have 3 elements, got %d", len(commenterUsernames))
 	}
 	
 	expectedUsernames := []string{"reviewer1", "reviewer2", "user1"}
-	for i, username := range commentorUsernames {
+	for i, username := range commenterUsernames {
 		if str, ok := username.(string); !ok || str != expectedUsernames[i] {
-			t.Errorf("Expected commentor_usernames[%d] to be %s, got %v", i, expectedUsernames[i], username)
+			t.Errorf("Expected commenter_usernames[%d] to be %s, got %v", i, expectedUsernames[i], username)
 		}
 	}
 
-	// Verify that existing num_commentors field is still present
-	if numCommentors, ok := result["num_commentors"].(float64); !ok || int(numCommentors) != 3 {
-		t.Errorf("Expected num_commentors to be 3, got %v", result["num_commentors"])
+	// Verify that existing num_commenters field is still present
+	if numCommenters, ok := result["num_commenters"].(float64); !ok || int(numCommenters) != 3 {
+		t.Errorf("Expected num_commenters to be 3, got %v", result["num_commenters"])
 	}
 }
 
@@ -2337,10 +2337,10 @@ func TestPRDetailsWithChangeRequestCommentsCount(t *testing.T) {
 		PRNumber:                   123,
 		PRTitle:                    "Test PR with change requests",
 		AuthorUsername:             "author",
-		CommentorUsernames:         []string{"reviewer1", "reviewer2"},
+		CommenterUsernames:         []string{"reviewer1", "reviewer2"},
 		State:                      "open",
 		NumComments:                8,
-		NumCommentors:              2,
+		NumCommenters:              2,
 		NumApprovers:               1,
 		ChangeRequestsCount:        2,
 		ChangeRequestCommentsCount: 5,
@@ -2578,10 +2578,10 @@ func TestPRDetailsWithUpdatedRequestedReviewersCount(t *testing.T) {
 		PRTitle:               "Test PR with comprehensive reviewer count",
 		AuthorUsername:        "author",
 		ApproverUsernames:     []string{"reviewer1"},
-		CommentorUsernames:    []string{"reviewer1", "reviewer2"},
+		CommenterUsernames:    []string{"reviewer1", "reviewer2"},
 		State:                 "open",
 		NumComments:           5,
-		NumCommentors:         2,
+		NumCommenters:         2,
 		NumApprovers:          1,
 		NumRequestedReviewers: 4, // Should include both reviewed and pending reviewers
 		ChangeRequestsCount:   1,
