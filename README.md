@@ -14,6 +14,7 @@ Pull Metrics retrieves detailed information about a specific GitHub Pull Request
 - **Timeline Tracking**: Timestamps for key events (creation, first review request, first comment, approvals, merge, close)
 - **Development Activity**: Count of commits made after the first review request
 - **Jira Integration**: Extracts Jira issue identifiers from PR title, body, or branch name
+- **Performance Metrics**: Calculated metrics for PR review process efficiency and participation
 - **Release Integration**: Identifies which release (if any) includes the merged PR code
 - **Generation Metadata**: Timestamp indicating when the analysis was performed
 
@@ -106,6 +107,12 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
   "files_changed": 0,
   "commits_after_first_review": 0,
   "jira_issue": "string",
+  "metrics": {
+    "time_to_first_review_hours": 1.5,
+    "review_cycle_time_hours": 24.0,
+    "blocking_non_blocking_ratio": 0.33,
+    "reviewer_participation_ratio": 0.75
+  },
   "release_name": "string",
   "created_at": "2023-01-01T10:00:00Z",
   "first_review_request": "2023-01-01T11:00:00Z",
@@ -136,6 +143,7 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
 | `files_changed` | integer | Number of files modified in the PR |
 | `commits_after_first_review` | integer | Number of commits made after the first review request |
 | `jira_issue` | string | Jira issue identifier associated with the PR (e.g., "ABC-123") or "UNKNOWN" if none found |
+| `metrics` | object | Calculated performance metrics for the PR review process (optional) |
 | `release_name` | string | Name of the release containing the merged PR (optional) |
 | `created_at` | string | UTC timestamp when the PR was created (optional) |
 | `first_review_request` | string | UTC timestamp of the first review request (optional) |
@@ -146,11 +154,30 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
 | `closed_at` | string | UTC timestamp when the PR was closed (optional) |
 | `generated_at` | string | UTC timestamp when this analysis was performed |
 
+### Metrics Object
+
+The `metrics` object contains calculated performance indicators for the PR review process:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `time_to_first_review_hours` | float | Hours from first review request to first comment (optional) |
+| `review_cycle_time_hours` | float | Hours from first review request to PR resolution (merge/close) (optional) |
+| `blocking_non_blocking_ratio` | float | Ratio of blocking (CHANGES_REQUESTED) to non-blocking (APPROVED/COMMENTED) reviews (optional) |
+| `reviewer_participation_ratio` | float | Ratio of actual reviewers to requested reviewers (optional) |
+
+**Metrics Calculation Details:**
+- **Time to First Review**: Only calculated if first comment occurs after first review request
+- **Review Cycle Time**: Uses merge time if available, otherwise close time
+- **Blocking Ratio**: Only calculated if there are non-blocking reviews (avoids division by zero)
+- **Participation Ratio**: Only calculated if reviewers were requested
+
 ### Optional Fields
 
 Fields marked as "optional" are only included in the output when applicable:
 - Timestamps are excluded if the corresponding event never occurred
 - `release_name` is only included for merged PRs where a matching release is found
+- `metrics` object is excluded if no calculable metrics are available
+- Individual metric fields are excluded if calculation requirements are not met
 
 ### Timestamp Format
 
@@ -213,6 +240,7 @@ The utility includes comprehensive unit tests covering:
 - Release identification for merged PRs
 - Commit counting after review requests
 - Jira issue extraction and identification
+- PR performance metrics calculations
 
 ## Error Handling
 
@@ -259,6 +287,12 @@ $ ./pull-metrics microsoft vscode 12345
   "files_changed": 7,
   "commits_after_first_review": 2,
   "jira_issue": "VSCODE-123",
+  "metrics": {
+    "time_to_first_review_hours": 2.5,
+    "review_cycle_time_hours": 25.5,
+    "blocking_non_blocking_ratio": 0.5,
+    "reviewer_participation_ratio": 1.0
+  },
   "release_name": "v1.75.0",
   "created_at": "2023-01-15T09:30:00Z",
   "first_review_request": "2023-01-15T10:00:00Z",

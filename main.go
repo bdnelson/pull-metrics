@@ -27,6 +27,7 @@ type PRDetails struct {
 	FilesChanged      int      `json:"files_changed"`
 	CommitsAfterFirstReview int `json:"commits_after_first_review"`
 	JiraIssue         string   `json:"jira_issue"`
+	Metrics           *PRMetrics `json:"metrics,omitempty"`
 	ReleaseName       *string  `json:"release_name,omitempty"`
 	CreatedAt         *string  `json:"created_at,omitempty"`
 	FirstReviewRequest *string `json:"first_review_request,omitempty"`
@@ -121,6 +122,13 @@ type Timestamps struct {
 	ClosedAt          *string
 }
 
+type PRMetrics struct {
+	TimeToFirstReviewHours     *float64 `json:"time_to_first_review_hours,omitempty"`
+	ReviewCycleTimeHours       *float64 `json:"review_cycle_time_hours,omitempty"`
+	BlockingNonBlockingRatio   *float64 `json:"blocking_non_blocking_ratio,omitempty"`
+	ReviewerParticipationRatio *float64 `json:"reviewer_participation_ratio,omitempty"`
+}
+
 func main() {
 	if len(os.Args) != 4 {
 		fmt.Fprintf(os.Stderr, "Usage: %s <organization> <repository> <pr_number>\n", os.Args[0])
@@ -208,6 +216,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 	commitsAfterFirstReview := countCommitsAfterFirstReview(commits, timeline)
 	changeRequestsCount := countChangeRequests(reviews)
 	jiraIssue := extractJiraIssue(pr)
+	metrics := calculatePRMetrics(pr, reviews, comments, timeline, timestamps)
 
 	result := &PRDetails{
 		OrganizationName:     org,
@@ -224,6 +233,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		FilesChanged:         prSize.FilesChanged,
 		CommitsAfterFirstReview: commitsAfterFirstReview,
 		JiraIssue:            jiraIssue,
+		Metrics:              metrics,
 		GeneratedAt:          time.Now().UTC().Format(time.RFC3339),
 	}
 
@@ -684,4 +694,74 @@ func extractJiraIssue(pr *GitHubPR) string {
 	
 	// If not found, return UNKNOWN
 	return "UNKNOWN"
+}
+
+func calculatePRMetrics(pr *GitHubPR, reviews []GitHubReview, comments []GitHubComment, timeline []GitHubTimelineEvent, timestamps *Timestamps) *PRMetrics {
+	metrics := &PRMetrics{}
+	
+	// Time to First Review: time from first review request to first comment
+	if timestamps.FirstReviewRequest != nil && timestamps.FirstComment != nil {
+		if firstReviewTime, err := time.Parse(time.RFC3339, *timestamps.FirstReviewRequest); err == nil {
+			if firstCommentTime, err := time.Parse(time.RFC3339, *timestamps.FirstComment); err == nil {
+				if firstCommentTime.After(firstReviewTime) {
+					hours := firstCommentTime.Sub(firstReviewTime).Hours()
+					metrics.TimeToFirstReviewHours = &hours
+				}
+			}
+		}
+	}
+	
+	// Review Cycle Time: time from first review request to PR resolution (merged or closed)
+	if timestamps.FirstReviewRequest != nil {
+		if firstReviewTime, err := time.Parse(time.RFC3339, *timestamps.FirstReviewRequest); err == nil {
+			var resolutionTime *time.Time
+			
+			// Use merged time if available, otherwise closed time
+			if timestamps.MergedAt != nil {
+				if mergedTime, err := time.Parse(time.RFC3339, *timestamps.MergedAt); err == nil {
+					resolutionTime = &mergedTime
+				}
+			} else if timestamps.ClosedAt != nil {
+				if closedTime, err := time.Parse(time.RFC3339, *timestamps.ClosedAt); err == nil {
+					resolutionTime = &closedTime
+				}
+			}
+			
+			if resolutionTime != nil && resolutionTime.After(firstReviewTime) {
+				hours := resolutionTime.Sub(firstReviewTime).Hours()
+				metrics.ReviewCycleTimeHours = &hours
+			}
+		}
+	}
+	
+	// Blocking vs Non-Blocking comment ratio
+	blockingCount := 0
+	nonBlockingCount := 0
+	
+	for _, review := range reviews {
+		if review.State == "CHANGES_REQUESTED" {
+			blockingCount++
+		} else if review.State == "COMMENTED" || review.State == "APPROVED" {
+			nonBlockingCount++
+		}
+	}
+	
+	if nonBlockingCount > 0 {
+		ratio := float64(blockingCount) / float64(nonBlockingCount)
+		metrics.BlockingNonBlockingRatio = &ratio
+	}
+	
+	// Reviewer Participation Ratio: (actual reviewers) / (requested reviewers)
+	actualReviewers := make(map[string]bool)
+	for _, review := range reviews {
+		actualReviewers[review.User.Login] = true
+	}
+	
+	requestedReviewers := len(pr.RequestedReviewers)
+	if requestedReviewers > 0 {
+		ratio := float64(len(actualReviewers)) / float64(requestedReviewers)
+		metrics.ReviewerParticipationRatio = &ratio
+	}
+	
+	return metrics
 }

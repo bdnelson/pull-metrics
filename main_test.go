@@ -1104,6 +1104,232 @@ func TestExtractJiraIssue(t *testing.T) {
 	}
 }
 
+func TestCalculatePRMetrics(t *testing.T) {
+	tests := []struct {
+		name       string
+		pr         *GitHubPR
+		reviews    []GitHubReview
+		comments   []GitHubComment
+		timeline   []GitHubTimelineEvent
+		timestamps *Timestamps
+		validate   func(*testing.T, *PRMetrics)
+	}{
+		{
+			name: "All metrics available",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{
+					{Login: "reviewer1"},
+					{Login: "reviewer2"},
+				},
+			},
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"},
+					State:       "APPROVED",
+					SubmittedAt: "2023-01-01T15:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer2"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T16:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"},
+					State:       "COMMENTED",
+					SubmittedAt: "2023-01-01T17:00:00Z",
+				},
+			},
+			comments: []GitHubComment{},
+			timeline: []GitHubTimelineEvent{},
+			timestamps: &Timestamps{
+				FirstReviewRequest: stringPtr("2023-01-01T11:00:00Z"),
+				FirstComment:       stringPtr("2023-01-01T12:00:00Z"),
+				MergedAt:          stringPtr("2023-01-01T18:00:00Z"),
+			},
+			validate: func(t *testing.T, metrics *PRMetrics) {
+				// Time to First Review: 11:00 to 12:00 = 1 hour
+				if metrics.TimeToFirstReviewHours == nil || *metrics.TimeToFirstReviewHours != 1.0 {
+					t.Errorf("Expected TimeToFirstReviewHours to be 1.0, got %v", metrics.TimeToFirstReviewHours)
+				}
+				
+				// Review Cycle Time: 11:00 to 18:00 = 7 hours
+				if metrics.ReviewCycleTimeHours == nil || *metrics.ReviewCycleTimeHours != 7.0 {
+					t.Errorf("Expected ReviewCycleTimeHours to be 7.0, got %v", metrics.ReviewCycleTimeHours)
+				}
+				
+				// Blocking vs Non-Blocking: 1 CHANGES_REQUESTED / 2 (APPROVED + COMMENTED) = 0.5
+				if metrics.BlockingNonBlockingRatio == nil || *metrics.BlockingNonBlockingRatio != 0.5 {
+					t.Errorf("Expected BlockingNonBlockingRatio to be 0.5, got %v", metrics.BlockingNonBlockingRatio)
+				}
+				
+				// Reviewer Participation: 2 actual reviewers / 2 requested = 1.0
+				if metrics.ReviewerParticipationRatio == nil || *metrics.ReviewerParticipationRatio != 1.0 {
+					t.Errorf("Expected ReviewerParticipationRatio to be 1.0, got %v", metrics.ReviewerParticipationRatio)
+				}
+			},
+		},
+		{
+			name: "No metrics available - no review request",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{},
+			},
+			reviews:    []GitHubReview{},
+			comments:   []GitHubComment{},
+			timeline:   []GitHubTimelineEvent{},
+			timestamps: &Timestamps{},
+			validate: func(t *testing.T, metrics *PRMetrics) {
+				if metrics.TimeToFirstReviewHours != nil {
+					t.Errorf("Expected TimeToFirstReviewHours to be nil, got %v", metrics.TimeToFirstReviewHours)
+				}
+				if metrics.ReviewCycleTimeHours != nil {
+					t.Errorf("Expected ReviewCycleTimeHours to be nil, got %v", metrics.ReviewCycleTimeHours)
+				}
+				if metrics.BlockingNonBlockingRatio != nil {
+					t.Errorf("Expected BlockingNonBlockingRatio to be nil, got %v", metrics.BlockingNonBlockingRatio)
+				}
+				if metrics.ReviewerParticipationRatio != nil {
+					t.Errorf("Expected ReviewerParticipationRatio to be nil, got %v", metrics.ReviewerParticipationRatio)
+				}
+			},
+		},
+		{
+			name: "Time to first review - comment before review request",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{},
+			},
+			reviews:  []GitHubReview{},
+			comments: []GitHubComment{},
+			timeline: []GitHubTimelineEvent{},
+			timestamps: &Timestamps{
+				FirstReviewRequest: stringPtr("2023-01-01T12:00:00Z"),
+				FirstComment:       stringPtr("2023-01-01T11:00:00Z"), // Before review request
+			},
+			validate: func(t *testing.T, metrics *PRMetrics) {
+				// Should not calculate time to first review if comment was before review request
+				if metrics.TimeToFirstReviewHours != nil {
+					t.Errorf("Expected TimeToFirstReviewHours to be nil when comment is before review request, got %v", metrics.TimeToFirstReviewHours)
+				}
+			},
+		},
+		{
+			name: "Blocking ratio with only blocking comments",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{},
+			},
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T15:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer2"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T16:00:00Z",
+				},
+			},
+			comments:   []GitHubComment{},
+			timeline:   []GitHubTimelineEvent{},
+			timestamps: &Timestamps{},
+			validate: func(t *testing.T, metrics *PRMetrics) {
+				// Should not calculate ratio when there are no non-blocking comments
+				if metrics.BlockingNonBlockingRatio != nil {
+					t.Errorf("Expected BlockingNonBlockingRatio to be nil when no non-blocking comments, got %v", metrics.BlockingNonBlockingRatio)
+				}
+			},
+		},
+		{
+			name: "Reviewer participation - partial participation",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{
+					{Login: "reviewer1"},
+					{Login: "reviewer2"},
+					{Login: "reviewer3"},
+				},
+			},
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"},
+					State:       "APPROVED",
+					SubmittedAt: "2023-01-01T15:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"}, // Same reviewer, multiple reviews
+					State:       "COMMENTED",
+					SubmittedAt: "2023-01-01T16:00:00Z",
+				},
+			},
+			comments:   []GitHubComment{},
+			timeline:   []GitHubTimelineEvent{},
+			timestamps: &Timestamps{},
+			validate: func(t *testing.T, metrics *PRMetrics) {
+				// 1 actual reviewer (reviewer1) / 3 requested = 0.333...
+				if metrics.ReviewerParticipationRatio == nil {
+					t.Errorf("Expected ReviewerParticipationRatio to be calculated, got nil")
+				} else {
+					expected := 1.0 / 3.0
+					actual := *metrics.ReviewerParticipationRatio
+					if actual < expected-0.001 || actual > expected+0.001 {
+						t.Errorf("Expected ReviewerParticipationRatio to be ~%.3f, got %.3f", expected, actual)
+					}
+				}
+			},
+		},
+		{
+			name: "Review cycle time uses closed time when not merged",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{},
+			},
+			reviews:  []GitHubReview{},
+			comments: []GitHubComment{},
+			timeline: []GitHubTimelineEvent{},
+			timestamps: &Timestamps{
+				FirstReviewRequest: stringPtr("2023-01-01T11:00:00Z"),
+				ClosedAt:          stringPtr("2023-01-01T15:00:00Z"), // Not merged, but closed
+			},
+			validate: func(t *testing.T, metrics *PRMetrics) {
+				// Review Cycle Time: 11:00 to 15:00 = 4 hours
+				if metrics.ReviewCycleTimeHours == nil || *metrics.ReviewCycleTimeHours != 4.0 {
+					t.Errorf("Expected ReviewCycleTimeHours to be 4.0, got %v", metrics.ReviewCycleTimeHours)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := calculatePRMetrics(tt.pr, tt.reviews, tt.comments, tt.timeline, tt.timestamps)
+			tt.validate(t, result)
+		})
+	}
+}
+
 func stringPtr(s string) *string {
 	return &s
 }
