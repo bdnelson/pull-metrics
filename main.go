@@ -112,6 +112,7 @@ type PRSize struct {
 }
 
 type Timestamps struct {
+	FirstCommit       *string
 	CreatedAt         *string
 	FirstReviewRequest *string
 	FirstComment      *string
@@ -122,6 +123,7 @@ type Timestamps struct {
 }
 
 type PRTimestamps struct {
+	FirstCommit       *string `json:"first_commit,omitempty"`
 	CreatedAt         *string `json:"created_at,omitempty"`
 	FirstReviewRequest *string `json:"first_review_request,omitempty"`
 	FirstComment      *string `json:"first_comment,omitempty"`
@@ -220,7 +222,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 	state := getPRState(pr)
 	approvers := getApprovers(reviews)
 	commentors := getCommentors(comments, pr.User.Login)
-	timestamps := getTimestamps(pr, reviews, comments, timeline)
+	timestamps := getTimestamps(pr, reviews, comments, timeline, commits)
 	prSize := calculatePRSize(files)
 	releaseName := findReleaseForMergedPR(pr, releases)
 	commitsAfterFirstReview := countCommitsAfterFirstReview(commits, timeline)
@@ -257,6 +259,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 
 	// Create timestamps object
 	prTimestamps := &PRTimestamps{
+		FirstCommit:       timestamps.FirstCommit,
 		CreatedAt:         timestamps.CreatedAt,
 		FirstReviewRequest: timestamps.FirstReviewRequest,
 		FirstComment:      timestamps.FirstComment,
@@ -495,8 +498,18 @@ func getCommentors(comments []GitHubComment, authorUsername string) map[string]b
 	return commentors
 }
 
-func getTimestamps(pr *GitHubPR, reviews []GitHubReview, comments []GitHubComment, timeline []GitHubTimelineEvent) *Timestamps {
+func getTimestamps(pr *GitHubPR, reviews []GitHubReview, comments []GitHubComment, timeline []GitHubTimelineEvent, commits []GitHubCommit) *Timestamps {
 	timestamps := &Timestamps{}
+
+	// First commit timestamp (from commits)
+	if len(commits) > 0 {
+		// Sort commits by date to get the first one
+		sort.Slice(commits, func(i, j int) bool {
+			return commits[i].Commit.Author.Date < commits[j].Commit.Author.Date
+		})
+		utcTime := formatToUTC(commits[0].Commit.Author.Date)
+		timestamps.FirstCommit = &utcTime
+	}
 
 	// Created timestamp (from PR)
 	if pr.CreatedAt != "" {

@@ -11,7 +11,7 @@ Pull Metrics retrieves detailed information about a specific GitHub Pull Request
 - **Basic PR Information**: Organization, repository, PR number, title, web URL, node ID, author, state
 - **Review Metrics**: Number of commentors, approvers, requested reviewers, change requests, and their usernames
 - **Size Analysis**: Lines of code changed and number of files modified
-- **Timeline Tracking**: Timestamps for key events (creation, first review request, first comment, approvals, merge, close)
+- **Timeline Tracking**: Timestamps for key events (first commit, creation, first review request, first comment, approvals, merge, close)
 - **Development Activity**: Count of commits made after the first review request
 - **Jira Integration**: Extracts Jira issue identifiers from PR title, body, or branch name
 - **Performance Metrics**: Calculated metrics for PR review process efficiency and participation
@@ -119,6 +119,7 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
   },
   "release_name": "string",
   "timestamps": {
+    "first_commit": "2023-01-01T09:00:00Z",
     "created_at": "2023-01-01T10:00:00Z",
     "first_review_request": "2023-01-01T11:00:00Z",
     "first_comment": "2023-01-01T12:00:00Z",
@@ -163,6 +164,7 @@ The `timestamps` object contains all timestamp information related to the PR lif
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `first_commit` | string | UTC timestamp of the first commit in the PR branch (optional) |
 | `created_at` | string | UTC timestamp when the PR was created (optional) |
 | `first_review_request` | string | UTC timestamp of the first review request (optional) |
 | `first_comment` | string | UTC timestamp of the first comment (optional) |
@@ -318,6 +320,7 @@ $ ./pull-metrics microsoft vscode 12345
   },
   "release_name": "v1.75.0",
   "timestamps": {
+    "first_commit": "2023-01-15T09:00:00Z",
     "created_at": "2023-01-15T09:30:00Z",
     "first_review_request": "2023-01-15T10:00:00Z",
     "first_comment": "2023-01-15T11:30:00Z",

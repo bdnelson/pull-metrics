@@ -342,6 +342,7 @@ func TestGetTimestamps(t *testing.T) {
 		reviews  []GitHubReview
 		comments []GitHubComment
 		timeline []GitHubTimelineEvent
+		commits  []GitHubCommit
 		validate func(*testing.T, *Timestamps)
 	}{
 		{
@@ -381,7 +382,24 @@ func TestGetTimestamps(t *testing.T) {
 					CreatedAt: "2023-01-01T11:00:00Z",
 				},
 			},
+			commits: []GitHubCommit{
+				{
+					SHA: "abc123",
+					Commit: struct {
+						Author struct {
+							Date string `json:"date"`
+						} `json:"author"`
+					}{
+						Author: struct {
+							Date string `json:"date"`
+						}{Date: "2023-01-01T09:00:00Z"},
+					},
+				},
+			},
 			validate: func(t *testing.T, ts *Timestamps) {
+				if ts.FirstCommit == nil || *ts.FirstCommit != "2023-01-01T09:00:00Z" {
+					t.Errorf("Expected FirstCommit to be 2023-01-01T09:00:00Z, got %v", ts.FirstCommit)
+				}
 				if ts.CreatedAt == nil || *ts.CreatedAt != "2023-01-01T10:00:00Z" {
 					t.Errorf("Expected CreatedAt to be 2023-01-01T10:00:00Z, got %v", ts.CreatedAt)
 				}
@@ -413,7 +431,11 @@ func TestGetTimestamps(t *testing.T) {
 			reviews:  []GitHubReview{},
 			comments: []GitHubComment{},
 			timeline: []GitHubTimelineEvent{},
+			commits:  []GitHubCommit{},
 			validate: func(t *testing.T, ts *Timestamps) {
+				if ts.FirstCommit != nil {
+					t.Errorf("Expected FirstCommit to be nil, got %v", ts.FirstCommit)
+				}
 				if ts.CreatedAt == nil || *ts.CreatedAt != "2023-01-01T10:00:00Z" {
 					t.Errorf("Expected CreatedAt to be 2023-01-01T10:00:00Z, got %v", ts.CreatedAt)
 				}
@@ -437,11 +459,51 @@ func TestGetTimestamps(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "multiple commits - should get earliest",
+			pr: &GitHubPR{
+				CreatedAt: "2023-01-01T10:00:00Z",
+			},
+			reviews:  []GitHubReview{},
+			comments: []GitHubComment{},
+			timeline: []GitHubTimelineEvent{},
+			commits: []GitHubCommit{
+				{
+					SHA: "def456",
+					Commit: struct {
+						Author struct {
+							Date string `json:"date"`
+						} `json:"author"`
+					}{
+						Author: struct {
+							Date string `json:"date"`
+						}{Date: "2023-01-01T08:30:00Z"}, // Earlier commit
+					},
+				},
+				{
+					SHA: "abc123",
+					Commit: struct {
+						Author struct {
+							Date string `json:"date"`
+						} `json:"author"`
+					}{
+						Author: struct {
+							Date string `json:"date"`
+						}{Date: "2023-01-01T09:00:00Z"}, // Later commit
+					},
+				},
+			},
+			validate: func(t *testing.T, ts *Timestamps) {
+				if ts.FirstCommit == nil || *ts.FirstCommit != "2023-01-01T08:30:00Z" {
+					t.Errorf("Expected FirstCommit to be 2023-01-01T08:30:00Z (earliest), got %v", ts.FirstCommit)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := getTimestamps(tt.pr, tt.reviews, tt.comments, tt.timeline)
+			result := getTimestamps(tt.pr, tt.reviews, tt.comments, tt.timeline, tt.commits)
 			tt.validate(t, result)
 		})
 	}
@@ -1500,6 +1562,7 @@ func TestJSONOutputStructure(t *testing.T) {
 		JiraIssue:        "TEST-123",
 		GeneratedAt:      "2023-01-01T20:00:00Z",
 		Timestamps: &PRTimestamps{
+			FirstCommit:       stringPtr("2023-01-01T09:00:00Z"),
 			CreatedAt:         stringPtr("2023-01-01T10:00:00Z"),
 			FirstReviewRequest: stringPtr("2023-01-01T11:00:00Z"),
 			FirstComment:      stringPtr("2023-01-01T12:00:00Z"),
@@ -1526,6 +1589,9 @@ func TestJSONOutputStructure(t *testing.T) {
 	}
 
 	// Verify individual timestamp fields
+	if timestamps["first_commit"] != "2023-01-01T09:00:00Z" {
+		t.Errorf("Expected first_commit to be '2023-01-01T09:00:00Z', got %v", timestamps["first_commit"])
+	}
 	if timestamps["created_at"] != "2023-01-01T10:00:00Z" {
 		t.Errorf("Expected created_at to be '2023-01-01T10:00:00Z', got %v", timestamps["created_at"])
 	}
