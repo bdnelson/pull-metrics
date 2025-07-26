@@ -155,13 +155,13 @@ func TestGetApprovers(t *testing.T) {
 				t.Errorf("getApprovers() returned %d approvers, want %d", len(result), len(tt.expected))
 				return
 			}
-			
+
 			// Convert to map for easy comparison
 			resultMap := make(map[string]bool)
 			for _, username := range result {
 				resultMap[username] = true
 			}
-			
+
 			for _, expectedUser := range tt.expected {
 				if !resultMap[expectedUser] {
 					t.Errorf("getApprovers() missing expected user %s", expectedUser)
@@ -233,12 +233,12 @@ func TestGetCommenters(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := getCommenters(tt.comments, tt.reviewComments, tt.authorUsername)
-			
+
 			if len(result) != len(tt.expected) {
 				t.Errorf("getCommenters() returned %d commenters, want %d", len(result), len(tt.expected))
 				return
 			}
-			
+
 			for _, expectedUser := range tt.expected {
 				if !result[expectedUser] {
 					t.Errorf("getCommenters() missing expected user %s", expectedUser)
@@ -335,12 +335,12 @@ func TestGetCommenterUsernames(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := getCommenterUsernames(tt.commenters)
-			
+
 			if len(result) != len(tt.expected) {
 				t.Errorf("getCommenterUsernames() returned %d usernames, want %d", len(result), len(tt.expected))
 				return
 			}
-			
+
 			for i, username := range result {
 				if username != tt.expected[i] {
 					t.Errorf("getCommenterUsernames()[%d] = %v, want %v", i, username, tt.expected[i])

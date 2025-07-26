@@ -17,70 +17,75 @@ import (
 	"golang.org/x/oauth2"
 )
 
+// PRDetails represents the complete analysis of a GitHub Pull Request
 type PRDetails struct {
-	OrganizationName  string   `json:"organization_name"`
-	RepositoryName     string   `json:"repository_name"`
-	PRNumber          int      `json:"pr_number"`
-	PRTitle           string   `json:"pr_title"`
-	PRWebURL          string   `json:"pr_web_url"`
-	PRNodeID          string   `json:"pr_node_id"`
-	AuthorUsername    string   `json:"author_username"`
-	ApproverUsernames []string `json:"approver_usernames"`
-	CommenterUsernames []string `json:"commenter_usernames"`
-	State             string   `json:"state"`
-	NumComments       int      `json:"num_comments"`
-	NumCommenters     int      `json:"num_commenters"`
-	NumApprovers      int      `json:"num_approvers"`
-	NumRequestedReviewers int  `json:"num_requested_reviewers"`
-	ChangeRequestsCount int    `json:"change_requests_count"`
-	ChangeRequestCommentsCount int `json:"change_request_comments_count"`
-	LinesChanged      int      `json:"lines_changed"`
-	FilesChanged      int      `json:"files_changed"`
-	CommitsAfterFirstReview int `json:"commits_after_first_review"`
-	JiraIssue         string   `json:"jira_issue"`
-	IsBot             bool     `json:"is_bot"`
-	Metrics           *PRMetrics `json:"metrics,omitempty"`
-	ReleaseName       *string  `json:"release_name,omitempty"`
-	Timestamps        *PRTimestamps `json:"timestamps,omitempty"`
-	GeneratedAt       string   `json:"generated_at"`
+	OrganizationName           string        `json:"organization_name"`
+	RepositoryName             string        `json:"repository_name"`
+	PRNumber                   int           `json:"pr_number"`
+	PRTitle                    string        `json:"pr_title"`
+	PRWebURL                   string        `json:"pr_web_url"`
+	PRNodeID                   string        `json:"pr_node_id"`
+	AuthorUsername             string        `json:"author_username"`
+	ApproverUsernames          []string      `json:"approver_usernames"`
+	CommenterUsernames         []string      `json:"commenter_usernames"`
+	State                      string        `json:"state"`
+	NumComments                int           `json:"num_comments"`
+	NumCommenters              int           `json:"num_commenters"`
+	NumApprovers               int           `json:"num_approvers"`
+	NumRequestedReviewers      int           `json:"num_requested_reviewers"`
+	ChangeRequestsCount        int           `json:"change_requests_count"`
+	ChangeRequestCommentsCount int           `json:"change_request_comments_count"`
+	LinesChanged               int           `json:"lines_changed"`
+	FilesChanged               int           `json:"files_changed"`
+	CommitsAfterFirstReview    int           `json:"commits_after_first_review"`
+	JiraIssue                  string        `json:"jira_issue"`
+	IsBot                      bool          `json:"is_bot"`
+	Metrics                    *PRMetrics    `json:"metrics,omitempty"`
+	ReleaseName                *string       `json:"release_name,omitempty"`
+	Timestamps                 *PRTimestamps `json:"timestamps,omitempty"`
+	GeneratedAt                string        `json:"generated_at"`
 }
 
-
+// PRSize represents the size metrics of a Pull Request
 type PRSize struct {
 	LinesChanged int
 	FilesChanged int
 }
 
+// Timestamps represents internal timestamp data for PR analysis
 type Timestamps struct {
-	FirstCommit       *string
-	CreatedAt         *string
+	FirstCommit        *string
+	CreatedAt          *string
 	FirstReviewRequest *string
-	FirstComment      *string
-	FirstApproval     *string
-	SecondApproval    *string
-	MergedAt          *string
-	ClosedAt          *string
+	FirstComment       *string
+	FirstApproval      *string
+	SecondApproval     *string
+	MergedAt           *string
+	ClosedAt           *string
 }
 
+// PRTimestamps represents the JSON output structure for PR timestamps
 type PRTimestamps struct {
-	FirstCommit       *string `json:"first_commit,omitempty"`
-	CreatedAt         *string `json:"created_at,omitempty"`
+	FirstCommit        *string `json:"first_commit,omitempty"`
+	CreatedAt          *string `json:"created_at,omitempty"`
 	FirstReviewRequest *string `json:"first_review_request,omitempty"`
-	FirstComment      *string `json:"first_comment,omitempty"`
-	FirstApproval     *string `json:"first_approval,omitempty"`
-	SecondApproval    *string `json:"second_approval,omitempty"`
-	MergedAt          *string `json:"merged_at,omitempty"`
-	ClosedAt          *string `json:"closed_at,omitempty"`
+	FirstComment       *string `json:"first_comment,omitempty"`
+	FirstApproval      *string `json:"first_approval,omitempty"`
+	SecondApproval     *string `json:"second_approval,omitempty"`
+	MergedAt           *string `json:"merged_at,omitempty"`
+	ClosedAt           *string `json:"closed_at,omitempty"`
 }
 
+// PRMetrics represents calculated performance metrics for the PR review process
 type PRMetrics struct {
 	TimeToFirstReviewRequestHours *float64 `json:"time_to_first_review_request_hours,omitempty"`
-	TimeToFirstReviewHours     *float64 `json:"time_to_first_review_hours,omitempty"`
-	ReviewCycleTimeHours       *float64 `json:"review_cycle_time_hours,omitempty"`
-	BlockingNonBlockingRatio   *float64 `json:"blocking_non_blocking_ratio,omitempty"`
-	ReviewerParticipationRatio *float64 `json:"reviewer_participation_ratio,omitempty"`
+	TimeToFirstReviewHours        *float64 `json:"time_to_first_review_hours,omitempty"`
+	ReviewCycleTimeHours          *float64 `json:"review_cycle_time_hours,omitempty"`
+	BlockingNonBlockingRatio      *float64 `json:"blocking_non_blocking_ratio,omitempty"`
+	ReviewerParticipationRatio    *float64 `json:"reviewer_participation_ratio,omitempty"`
 }
 
+// Config represents the application configuration from command line arguments and environment variables
 type Config struct {
 	Organization string `conf:"pos:0,env:ORGANIZATION,help:GitHub organization or username"`
 	Repository   string `conf:"pos:1,env:REPOSITORY,help:Repository name"`
@@ -103,7 +108,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error parsing configuration: %v\n", err)
 		os.Exit(1)
 	}
-
 
 	if cfg.GitHubToken == "" {
 		fmt.Fprintf(os.Stderr, "GITHUB_TOKEN environment variable is required\n")
@@ -193,29 +197,29 @@ func getPRDetails(ctx context.Context, client *github.Client, org, repo string, 
 	metrics := calculatePRMetrics(pr, reviews, comments, timeline, timestamps)
 
 	result := &PRDetails{
-		OrganizationName:     org,
-		RepositoryName:        repo,
-		PRNumber:             prNumber,
-		PRTitle:              *pr.Title,
-		PRWebURL:             *pr.HTMLURL,
-		PRNodeID:             *pr.NodeID,
-		AuthorUsername:       *pr.User.Login,
-		ApproverUsernames:    approvers,
-		CommenterUsernames:   commenterUsernames,
-		State:                state,
-		NumComments:          numComments,
-		NumCommenters:        len(commenters),
-		NumApprovers:         len(approvers),
-		NumRequestedReviewers: numRequestedReviewers,
-		ChangeRequestsCount:  changeRequestsCount,
+		OrganizationName:           org,
+		RepositoryName:             repo,
+		PRNumber:                   prNumber,
+		PRTitle:                    *pr.Title,
+		PRWebURL:                   *pr.HTMLURL,
+		PRNodeID:                   *pr.NodeID,
+		AuthorUsername:             *pr.User.Login,
+		ApproverUsernames:          approvers,
+		CommenterUsernames:         commenterUsernames,
+		State:                      state,
+		NumComments:                numComments,
+		NumCommenters:              len(commenters),
+		NumApprovers:               len(approvers),
+		NumRequestedReviewers:      numRequestedReviewers,
+		ChangeRequestsCount:        changeRequestsCount,
 		ChangeRequestCommentsCount: changeRequestCommentsCount,
-		LinesChanged:         prSize.LinesChanged,
-		FilesChanged:         prSize.FilesChanged,
-		CommitsAfterFirstReview: commitsAfterFirstReview,
-		JiraIssue:            jiraIssue,
-		IsBot:                isBot(*pr.User.Login),
-		Metrics:              metrics,
-		GeneratedAt:          time.Now().UTC().Format(time.RFC3339),
+		LinesChanged:               prSize.LinesChanged,
+		FilesChanged:               prSize.FilesChanged,
+		CommitsAfterFirstReview:    commitsAfterFirstReview,
+		JiraIssue:                  jiraIssue,
+		IsBot:                      isBot(*pr.User.Login),
+		Metrics:                    metrics,
+		GeneratedAt:                time.Now().UTC().Format(time.RFC3339),
 	}
 
 	// Add release name if it exists
@@ -225,16 +229,16 @@ func getPRDetails(ctx context.Context, client *github.Client, org, repo string, 
 
 	// Create timestamps object
 	prTimestamps := &PRTimestamps{
-		FirstCommit:       timestamps.FirstCommit,
-		CreatedAt:         timestamps.CreatedAt,
+		FirstCommit:        timestamps.FirstCommit,
+		CreatedAt:          timestamps.CreatedAt,
 		FirstReviewRequest: timestamps.FirstReviewRequest,
-		FirstComment:      timestamps.FirstComment,
-		FirstApproval:     timestamps.FirstApproval,
-		SecondApproval:    timestamps.SecondApproval,
-		MergedAt:          timestamps.MergedAt,
-		ClosedAt:          timestamps.ClosedAt,
+		FirstComment:       timestamps.FirstComment,
+		FirstApproval:      timestamps.FirstApproval,
+		SecondApproval:     timestamps.SecondApproval,
+		MergedAt:           timestamps.MergedAt,
+		ClosedAt:           timestamps.ClosedAt,
 	}
-	
+
 	result.Timestamps = prTimestamps
 
 	return result, nil
@@ -251,20 +255,20 @@ func fetchPR(ctx context.Context, client *github.Client, org, repo string, prNum
 func fetchReviews(ctx context.Context, client *github.Client, org, repo string, prNumber int) ([]*github.PullRequestReview, error) {
 	var allReviews []*github.PullRequestReview
 	opts := &github.ListOptions{PerPage: 100}
-	
+
 	for {
 		reviews, resp, err := client.PullRequests.ListReviews(ctx, org, repo, prNumber, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch reviews: %w", err)
 		}
 		allReviews = append(allReviews, reviews...)
-		
+
 		if resp.NextPage == 0 {
 			break
 		}
 		opts.Page = resp.NextPage
 	}
-	
+
 	return allReviews, nil
 }
 
@@ -273,20 +277,20 @@ func fetchComments(ctx context.Context, client *github.Client, org, repo string,
 	opts := &github.IssueListCommentsOptions{
 		ListOptions: github.ListOptions{PerPage: 100},
 	}
-	
+
 	for {
 		comments, resp, err := client.Issues.ListComments(ctx, org, repo, prNumber, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch comments: %w", err)
 		}
 		allComments = append(allComments, comments...)
-		
+
 		if resp.NextPage == 0 {
 			break
 		}
 		opts.Page = resp.NextPage
 	}
-	
+
 	return allComments, nil
 }
 
@@ -295,100 +299,100 @@ func fetchReviewComments(ctx context.Context, client *github.Client, org, repo s
 	opts := &github.PullRequestListCommentsOptions{
 		ListOptions: github.ListOptions{PerPage: 100},
 	}
-	
+
 	for {
 		reviewComments, resp, err := client.PullRequests.ListComments(ctx, org, repo, prNumber, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch review comments: %w", err)
 		}
 		allReviewComments = append(allReviewComments, reviewComments...)
-		
+
 		if resp.NextPage == 0 {
 			break
 		}
 		opts.Page = resp.NextPage
 	}
-	
+
 	return allReviewComments, nil
 }
 
 func fetchTimeline(ctx context.Context, client *github.Client, org, repo string, prNumber int) ([]*github.Timeline, error) {
 	var allTimeline []*github.Timeline
 	opts := &github.ListOptions{PerPage: 100}
-	
+
 	for {
 		timeline, resp, err := client.Issues.ListIssueTimeline(ctx, org, repo, prNumber, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch timeline: %w", err)
 		}
 		allTimeline = append(allTimeline, timeline...)
-		
+
 		if resp.NextPage == 0 {
 			break
 		}
 		opts.Page = resp.NextPage
 	}
-	
+
 	return allTimeline, nil
 }
 
 func fetchPRFiles(ctx context.Context, client *github.Client, org, repo string, prNumber int) ([]*github.CommitFile, error) {
 	var allFiles []*github.CommitFile
 	opts := &github.ListOptions{PerPage: 100}
-	
+
 	for {
 		files, resp, err := client.PullRequests.ListFiles(ctx, org, repo, prNumber, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch PR files: %w", err)
 		}
 		allFiles = append(allFiles, files...)
-		
+
 		if resp.NextPage == 0 {
 			break
 		}
 		opts.Page = resp.NextPage
 	}
-	
+
 	return allFiles, nil
 }
 
 func fetchReleases(ctx context.Context, client *github.Client, org, repo string) ([]*github.RepositoryRelease, error) {
 	var allReleases []*github.RepositoryRelease
 	opts := &github.ListOptions{PerPage: 100}
-	
+
 	for {
 		releases, resp, err := client.Repositories.ListReleases(ctx, org, repo, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch releases: %w", err)
 		}
 		allReleases = append(allReleases, releases...)
-		
+
 		if resp.NextPage == 0 {
 			break
 		}
 		opts.Page = resp.NextPage
 	}
-	
+
 	return allReleases, nil
 }
 
 func fetchPRCommits(ctx context.Context, client *github.Client, org, repo string, prNumber int) ([]*github.RepositoryCommit, error) {
 	var allCommits []*github.RepositoryCommit
 	opts := &github.ListOptions{PerPage: 100}
-	
+
 	for {
 		commits, resp, err := client.PullRequests.ListCommits(ctx, org, repo, prNumber, opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch PR commits: %w", err)
 		}
 		allCommits = append(allCommits, commits...)
-		
+
 		if resp.NextPage == 0 {
 			break
 		}
 		opts.Page = resp.NextPage
 	}
-	
+
 	return allCommits, nil
 }
 
@@ -419,21 +423,21 @@ func getApprovers(reviews []*github.PullRequestReview) []string {
 
 func getCommenters(comments []*github.IssueComment, reviewComments []*github.PullRequestComment, authorUsername string) map[string]bool {
 	commenters := make(map[string]bool)
-	
+
 	// Process regular comments
 	for _, comment := range comments {
 		if comment.GetUser().GetLogin() != authorUsername {
 			commenters[comment.GetUser().GetLogin()] = true
 		}
 	}
-	
+
 	// Process review comments
 	for _, reviewComment := range reviewComments {
 		if reviewComment.GetUser().GetLogin() != authorUsername {
 			commenters[reviewComment.GetUser().GetLogin()] = true
 		}
 	}
-	
+
 	return commenters
 }
 
@@ -453,17 +457,17 @@ func getCommenterUsernames(commenters map[string]bool) []string {
 func countAllRequestedReviewers(pr *github.PullRequest, reviews []*github.PullRequestReview) int {
 	// Count all reviewers who were requested to review (both those who reviewed and those who haven't)
 	requestedReviewers := make(map[string]bool)
-	
+
 	// Add users who have submitted reviews (they must have been requested to review)
 	for _, review := range reviews {
 		requestedReviewers[review.GetUser().GetLogin()] = true
 	}
-	
+
 	// Add current requested reviewers (those who haven't reviewed yet)
 	for _, reviewer := range pr.RequestedReviewers {
 		requestedReviewers[reviewer.GetLogin()] = true
 	}
-	
+
 	return len(requestedReviewers)
 }
 
@@ -507,7 +511,7 @@ func getTimestamps(pr *github.PullRequest, reviews []*github.PullRequestReview, 
 
 	// First comment (from both regular comments and review comments)
 	var allComments []time.Time
-	
+
 	// Collect all comment timestamps
 	for _, comment := range comments {
 		allComments = append(allComments, comment.GetCreatedAt().Time)
@@ -515,7 +519,7 @@ func getTimestamps(pr *github.PullRequest, reviews []*github.PullRequestReview, 
 	for _, reviewComment := range reviewComments {
 		allComments = append(allComments, reviewComment.GetCreatedAt().Time)
 	}
-	
+
 	if len(allComments) > 0 {
 		// Sort all comment timestamps to get the first one
 		sort.Slice(allComments, func(i, j int) bool {
@@ -532,7 +536,7 @@ func getTimestamps(pr *github.PullRequest, reviews []*github.PullRequestReview, 
 			approvals = append(approvals, review)
 		}
 	}
-	
+
 	// Sort approvals by submission time
 	sort.Slice(approvals, func(i, j int) bool {
 		return approvals[i].GetSubmittedAt().Before(approvals[j].GetSubmittedAt().Time)
@@ -586,10 +590,10 @@ func findReleaseForMergedPR(pr *github.PullRequest, releases []*github.Repositor
 		if release.PublishedAt == nil || release.GetPublishedAt().IsZero() {
 			continue
 		}
-		
+
 		publishedTime := release.GetPublishedAt().Time
 
-		// If the release was published after the PR was merged, 
+		// If the release was published after the PR was merged,
 		// this PR is likely included in this release
 		if publishedTime.After(mergedTime) {
 			validReleases = append(validReleases, release)
@@ -660,23 +664,23 @@ func countChangeRequestComments(comments []*github.IssueComment, reviewComments 
 			changeRequesters[review.GetUser().GetLogin()] = true
 		}
 	}
-	
+
 	count := 0
-	
+
 	// Count regular comments from users who submitted change requests
 	for _, comment := range comments {
 		if changeRequesters[comment.GetUser().GetLogin()] {
 			count++
 		}
 	}
-	
+
 	// Count review comments from users who submitted change requests
 	for _, reviewComment := range reviewComments {
 		if changeRequesters[reviewComment.GetUser().GetLogin()] {
 			count++
 		}
 	}
-	
+
 	return count
 }
 
@@ -702,36 +706,36 @@ func extractJiraIssue(pr *github.PullRequest) string {
 	// Matches project key (2+ uppercase letters or alphanumeric) followed by hyphen and number
 	// Excludes CVE- identifiers which are security vulnerability IDs, not Jira issues
 	jiraPattern := regexp.MustCompile(`\b[A-Z][A-Z0-9]+-\d+\b`)
-	
+
 	// Search in PR title first
 	if issue := findValidJiraIssue(jiraPattern, pr.GetTitle()); issue != "" {
 		return issue
 	}
-	
+
 	// Search in PR body if available
 	if pr.Body != nil && pr.GetBody() != "" {
 		if issue := findValidJiraIssue(jiraPattern, pr.GetBody()); issue != "" {
 			return issue
 		}
 	}
-	
+
 	// Search in branch name (head ref)
 	if issue := findValidJiraIssue(jiraPattern, strings.ToUpper(pr.GetHead().GetRef())); issue != "" {
 		return issue
 	}
-	
+
 	// If not found, check if the user is a bot
 	if isBot(pr.GetUser().GetLogin()) {
 		return "BOT"
 	}
-	
+
 	// If not a bot and no Jira issue found, return UNKNOWN
 	return "UNKNOWN"
 }
 
 func calculatePRMetrics(pr *github.PullRequest, reviews []*github.PullRequestReview, comments []*github.IssueComment, timeline []*github.Timeline, timestamps *Timestamps) *PRMetrics {
 	metrics := &PRMetrics{}
-	
+
 	// Time to First Review Request: time from PR creation to first review request
 	if timestamps.CreatedAt != nil && timestamps.FirstReviewRequest != nil {
 		if createdTime, err := time.Parse(time.RFC3339, *timestamps.CreatedAt); err == nil {
@@ -743,19 +747,19 @@ func calculatePRMetrics(pr *github.PullRequest, reviews []*github.PullRequestRev
 			}
 		}
 	}
-	
+
 	// Time to First Review: time from first review request to first comment or first approval
 	if timestamps.FirstReviewRequest != nil {
 		if firstReviewRequestTime, err := time.Parse(time.RFC3339, *timestamps.FirstReviewRequest); err == nil {
 			var firstReviewActivityTime *time.Time
-			
+
 			// Find the earliest between first comment and first approval
 			if timestamps.FirstComment != nil {
 				if firstCommentTime, err := time.Parse(time.RFC3339, *timestamps.FirstComment); err == nil {
 					firstReviewActivityTime = &firstCommentTime
 				}
 			}
-			
+
 			if timestamps.FirstApproval != nil {
 				if firstApprovalTime, err := time.Parse(time.RFC3339, *timestamps.FirstApproval); err == nil {
 					if firstReviewActivityTime == nil || firstApprovalTime.Before(*firstReviewActivityTime) {
@@ -763,7 +767,7 @@ func calculatePRMetrics(pr *github.PullRequest, reviews []*github.PullRequestRev
 					}
 				}
 			}
-			
+
 			// Calculate time to first review activity if we have one and it's after the review request
 			if firstReviewActivityTime != nil && firstReviewActivityTime.After(firstReviewRequestTime) {
 				hours := firstReviewActivityTime.Sub(firstReviewRequestTime).Hours()
@@ -771,12 +775,12 @@ func calculatePRMetrics(pr *github.PullRequest, reviews []*github.PullRequestRev
 			}
 		}
 	}
-	
+
 	// Review Cycle Time: time from first review request to PR resolution (merged or closed)
 	if timestamps.FirstReviewRequest != nil {
 		if firstReviewTime, err := time.Parse(time.RFC3339, *timestamps.FirstReviewRequest); err == nil {
 			var resolutionTime *time.Time
-			
+
 			// Use merged time if available, otherwise closed time
 			if timestamps.MergedAt != nil {
 				if mergedTime, err := time.Parse(time.RFC3339, *timestamps.MergedAt); err == nil {
@@ -787,18 +791,18 @@ func calculatePRMetrics(pr *github.PullRequest, reviews []*github.PullRequestRev
 					resolutionTime = &closedTime
 				}
 			}
-			
+
 			if resolutionTime != nil && resolutionTime.After(firstReviewTime) {
 				hours := resolutionTime.Sub(firstReviewTime).Hours()
 				metrics.ReviewCycleTimeHours = &hours
 			}
 		}
 	}
-	
+
 	// Blocking vs Non-Blocking comment ratio
 	blockingCount := 0
 	nonBlockingCount := 0
-	
+
 	for _, review := range reviews {
 		if review.GetState() == "CHANGES_REQUESTED" {
 			blockingCount++
@@ -806,23 +810,23 @@ func calculatePRMetrics(pr *github.PullRequest, reviews []*github.PullRequestRev
 			nonBlockingCount++
 		}
 	}
-	
+
 	if nonBlockingCount > 0 {
 		ratio := float64(blockingCount) / float64(nonBlockingCount)
 		metrics.BlockingNonBlockingRatio = &ratio
 	}
-	
+
 	// Reviewer Participation Ratio: (actual reviewers) / (requested reviewers)
 	actualReviewers := make(map[string]bool)
 	for _, review := range reviews {
 		actualReviewers[review.GetUser().GetLogin()] = true
 	}
-	
+
 	requestedReviewers := countAllRequestedReviewers(pr, reviews)
 	if requestedReviewers > 0 {
 		ratio := float64(len(actualReviewers)) / float64(requestedReviewers)
 		metrics.ReviewerParticipationRatio = &ratio
 	}
-	
+
 	return metrics
 }

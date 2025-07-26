@@ -35,12 +35,12 @@ deps:
 
 # Format code
 fmt:
-	go fmt ./...
+	go fmt main.go main_test.go
 
 # Lint code (if golint is available)
 lint:
 	@which golint > /dev/null || (echo "golint not found, install with: go install golang.org/x/lint/golint@latest"; exit 1)
-	golint ./...
+	golint main.go main_test.go
 
 # Run all checks
 check: fmt lint test
