@@ -28,6 +28,7 @@ type PRDetails struct {
 	NumApprovers      int      `json:"num_approvers"`
 	NumRequestedReviewers int  `json:"num_requested_reviewers"`
 	ChangeRequestsCount int    `json:"change_requests_count"`
+	ChangeRequestCommentsCount int `json:"change_request_comments_count"`
 	LinesChanged      int      `json:"lines_changed"`
 	FilesChanged      int      `json:"files_changed"`
 	CommitsAfterFirstReview int `json:"commits_after_first_review"`
@@ -244,6 +245,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 	releaseName := findReleaseForMergedPR(pr, releases)
 	commitsAfterFirstReview := countCommitsAfterFirstReview(commits, timeline)
 	changeRequestsCount := countChangeRequests(reviews)
+	changeRequestCommentsCount := countChangeRequestComments(comments, reviewComments, reviews)
 	jiraIssue := extractJiraIssue(pr)
 	metrics := calculatePRMetrics(pr, reviews, comments, timeline, timestamps)
 
@@ -263,6 +265,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		NumApprovers:         len(approvers),
 		NumRequestedReviewers: len(pr.RequestedReviewers),
 		ChangeRequestsCount:  changeRequestsCount,
+		ChangeRequestCommentsCount: changeRequestCommentsCount,
 		LinesChanged:         prSize.LinesChanged,
 		FilesChanged:         prSize.FilesChanged,
 		CommitsAfterFirstReview: commitsAfterFirstReview,
@@ -761,6 +764,34 @@ func countChangeRequests(reviews []GitHubReview) int {
 			count++
 		}
 	}
+	return count
+}
+
+func countChangeRequestComments(comments []GitHubComment, reviewComments []GitHubReviewComment, reviews []GitHubReview) int {
+	// Create a set of user logins who submitted change requests
+	changeRequesters := make(map[string]bool)
+	for _, review := range reviews {
+		if review.State == "CHANGES_REQUESTED" {
+			changeRequesters[review.User.Login] = true
+		}
+	}
+	
+	count := 0
+	
+	// Count regular comments from users who submitted change requests
+	for _, comment := range comments {
+		if changeRequesters[comment.User.Login] {
+			count++
+		}
+	}
+	
+	// Count review comments from users who submitted change requests
+	for _, reviewComment := range reviewComments {
+		if changeRequesters[reviewComment.User.Login] {
+			count++
+		}
+	}
+	
 	return count
 }
 

@@ -2143,6 +2143,243 @@ func TestPRDetailsWithCommentFields(t *testing.T) {
 	}
 }
 
+func TestCountChangeRequestComments(t *testing.T) {
+	tests := []struct {
+		name           string
+		comments       []GitHubComment
+		reviewComments []GitHubReviewComment
+		reviews        []GitHubReview
+		expected       int
+	}{
+		{
+			name:           "no comments or reviews",
+			comments:       []GitHubComment{},
+			reviewComments: []GitHubReviewComment{},
+			reviews:        []GitHubReview{},
+			expected:       0,
+		},
+		{
+			name:           "no change requests",
+			comments:       []GitHubComment{},
+			reviewComments: []GitHubReviewComment{},
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"},
+					State:       "APPROVED",
+					SubmittedAt: "2023-01-01T10:00:00Z",
+				},
+			},
+			expected: 0,
+		},
+		{
+			name: "change request with no comments from requester",
+			comments: []GitHubComment{
+				{User: struct{ Login string `json:"login"` }{Login: "other-user"}, CreatedAt: "2023-01-01T10:00:00Z"},
+			},
+			reviewComments: []GitHubReviewComment{},
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T11:00:00Z",
+				},
+			},
+			expected: 0,
+		},
+		{
+			name: "change request with regular comments from requester",
+			comments: []GitHubComment{
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T10:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T12:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "other-user"}, CreatedAt: "2023-01-01T13:00:00Z"},
+			},
+			reviewComments: []GitHubReviewComment{},
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T11:00:00Z",
+				},
+			},
+			expected: 2,
+		},
+		{
+			name:     "change request with review comments from requester",
+			comments: []GitHubComment{},
+			reviewComments: []GitHubReviewComment{
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T10:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T12:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "other-user"}, CreatedAt: "2023-01-01T13:00:00Z"},
+			},
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T11:00:00Z",
+				},
+			},
+			expected: 2,
+		},
+		{
+			name: "change request with both comment types from requester",
+			comments: []GitHubComment{
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T10:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "other-user"}, CreatedAt: "2023-01-01T13:00:00Z"},
+			},
+			reviewComments: []GitHubReviewComment{
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T12:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T14:00:00Z"},
+			},
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T11:00:00Z",
+				},
+			},
+			expected: 3,
+		},
+		{
+			name: "multiple change requesters with comments",
+			comments: []GitHubComment{
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T10:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer2"}, CreatedAt: "2023-01-01T11:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "other-user"}, CreatedAt: "2023-01-01T13:00:00Z"},
+			},
+			reviewComments: []GitHubReviewComment{
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T12:00:00Z"},
+			},
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T09:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer2"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T10:30:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer3"},
+					State:       "APPROVED",
+					SubmittedAt: "2023-01-01T15:00:00Z",
+				},
+			},
+			expected: 3, // 2 comments from reviewer1 + 1 comment from reviewer2
+		},
+		{
+			name: "mixed review states - only count change requesters",
+			comments: []GitHubComment{
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T10:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer2"}, CreatedAt: "2023-01-01T11:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer3"}, CreatedAt: "2023-01-01T13:00:00Z"},
+			},
+			reviewComments: []GitHubReviewComment{},
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T09:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer2"},
+					State:       "APPROVED",
+					SubmittedAt: "2023-01-01T10:30:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer3"},
+					State:       "COMMENTED",
+					SubmittedAt: "2023-01-01T12:00:00Z",
+				},
+			},
+			expected: 1, // Only reviewer1 requested changes
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := countChangeRequestComments(tt.comments, tt.reviewComments, tt.reviews)
+			if result != tt.expected {
+				t.Errorf("countChangeRequestComments() = %d, want %d", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPRDetailsWithChangeRequestCommentsCount(t *testing.T) {
+	// Test that the new change request comments count field is properly included in JSON output
+	prDetails := &PRDetails{
+		OrganizationName:           "test-org",
+		RepositoryName:             "test-repo",
+		PRNumber:                   123,
+		PRTitle:                    "Test PR with change requests",
+		AuthorUsername:             "author",
+		CommentorUsernames:         []string{"reviewer1", "reviewer2"},
+		State:                      "open",
+		NumComments:                8,
+		NumCommentors:              2,
+		NumApprovers:               1,
+		ChangeRequestsCount:        2,
+		ChangeRequestCommentsCount: 5,
+		JiraIssue:                  "TEST-123",
+		IsBot:                      false,
+		GeneratedAt:                "2023-01-01T20:00:00Z",
+	}
+
+	// Marshal to JSON
+	jsonBytes, err := json.Marshal(prDetails)
+	if err != nil {
+		t.Fatalf("Failed to marshal JSON: %v", err)
+	}
+
+	// Unmarshal to check structure
+	var result map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	// Verify change_request_comments_count field
+	if changeRequestCommentsCount, ok := result["change_request_comments_count"].(float64); !ok || int(changeRequestCommentsCount) != 5 {
+		t.Errorf("Expected change_request_comments_count to be 5, got %v", result["change_request_comments_count"])
+	}
+
+	// Verify that existing change_requests_count field is still present and distinct
+	if changeRequestsCount, ok := result["change_requests_count"].(float64); !ok || int(changeRequestsCount) != 2 {
+		t.Errorf("Expected change_requests_count to be 2, got %v", result["change_requests_count"])
+	}
+
+	// Verify both fields are present and different
+	changeRequestsCount := int(result["change_requests_count"].(float64))
+	changeRequestCommentsCount := int(result["change_request_comments_count"].(float64))
+	
+	if changeRequestsCount == changeRequestCommentsCount {
+		t.Error("change_requests_count and change_request_comments_count should have different values in this test case")
+	}
+}
+
 func stringPtr(s string) *string {
 	return &s
 }
