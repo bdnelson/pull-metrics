@@ -166,13 +166,13 @@ The `metrics` object contains calculated performance indicators for the PR revie
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `time_to_first_review_hours` | float | Hours from first review request to first comment (optional) |
+| `time_to_first_review_hours` | float | Hours from first review request to first comment or first approval, whichever comes first (optional) |
 | `review_cycle_time_hours` | float | Hours from first review request to PR resolution (merge/close) (optional) |
 | `blocking_non_blocking_ratio` | float | Ratio of blocking (CHANGES_REQUESTED) to non-blocking (APPROVED/COMMENTED) reviews (optional) |
 | `reviewer_participation_ratio` | float | Ratio of actual reviewers to requested reviewers (optional) |
 
 **Metrics Calculation Details:**
-- **Time to First Review**: Only calculated if first comment occurs after first review request
+- **Time to First Review**: Only calculated if first review activity (comment or approval) occurs after first review request
 - **Review Cycle Time**: Uses merge time if available, otherwise close time
 - **Blocking Ratio**: Only calculated if there are non-blocking reviews (avoids division by zero)
 - **Participation Ratio**: Only calculated if reviewers were requested

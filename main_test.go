@@ -1196,7 +1196,7 @@ func TestCalculatePRMetrics(t *testing.T) {
 				MergedAt:          stringPtr("2023-01-01T18:00:00Z"),
 			},
 			validate: func(t *testing.T, metrics *PRMetrics) {
-				// Time to First Review: 11:00 to 12:00 = 1 hour
+				// Time to First Review: 11:00 to 12:00 = 1 hour (first comment)
 				if metrics.TimeToFirstReviewHours == nil || *metrics.TimeToFirstReviewHours != 1.0 {
 					t.Errorf("Expected TimeToFirstReviewHours to be 1.0, got %v", metrics.TimeToFirstReviewHours)
 				}
@@ -1337,6 +1337,50 @@ func TestCalculatePRMetrics(t *testing.T) {
 					if actual < expected-0.001 || actual > expected+0.001 {
 						t.Errorf("Expected ReviewerParticipationRatio to be ~%.3f, got %.3f", expected, actual)
 					}
+				}
+			},
+		},
+		{
+			name: "Time to first review - approval before comment",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{},
+			},
+			reviews:  []GitHubReview{},
+			comments: []GitHubComment{},
+			timeline: []GitHubTimelineEvent{},
+			timestamps: &Timestamps{
+				FirstReviewRequest: stringPtr("2023-01-01T11:00:00Z"),
+				FirstComment:       stringPtr("2023-01-01T14:00:00Z"),
+				FirstApproval:      stringPtr("2023-01-01T12:00:00Z"), // Approval before comment
+			},
+			validate: func(t *testing.T, metrics *PRMetrics) {
+				// Time to First Review: 11:00 to 12:00 = 1 hour (first approval, not comment)
+				if metrics.TimeToFirstReviewHours == nil || *metrics.TimeToFirstReviewHours != 1.0 {
+					t.Errorf("Expected TimeToFirstReviewHours to be 1.0 (first approval), got %v", metrics.TimeToFirstReviewHours)
+				}
+			},
+		},
+		{
+			name: "Time to first review - only approval available",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{},
+			},
+			reviews:  []GitHubReview{},
+			comments: []GitHubComment{},
+			timeline: []GitHubTimelineEvent{},
+			timestamps: &Timestamps{
+				FirstReviewRequest: stringPtr("2023-01-01T10:00:00Z"),
+				FirstApproval:      stringPtr("2023-01-01T13:00:00Z"),
+				// No FirstComment
+			},
+			validate: func(t *testing.T, metrics *PRMetrics) {
+				// Time to First Review: 10:00 to 13:00 = 3 hours (only approval available)
+				if metrics.TimeToFirstReviewHours == nil || *metrics.TimeToFirstReviewHours != 3.0 {
+					t.Errorf("Expected TimeToFirstReviewHours to be 3.0 (only approval), got %v", metrics.TimeToFirstReviewHours)
 				}
 			},
 		},

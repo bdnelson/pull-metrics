@@ -707,14 +707,30 @@ func extractJiraIssue(pr *GitHubPR) string {
 func calculatePRMetrics(pr *GitHubPR, reviews []GitHubReview, comments []GitHubComment, timeline []GitHubTimelineEvent, timestamps *Timestamps) *PRMetrics {
 	metrics := &PRMetrics{}
 	
-	// Time to First Review: time from first review request to first comment
-	if timestamps.FirstReviewRequest != nil && timestamps.FirstComment != nil {
-		if firstReviewTime, err := time.Parse(time.RFC3339, *timestamps.FirstReviewRequest); err == nil {
-			if firstCommentTime, err := time.Parse(time.RFC3339, *timestamps.FirstComment); err == nil {
-				if firstCommentTime.After(firstReviewTime) {
-					hours := firstCommentTime.Sub(firstReviewTime).Hours()
-					metrics.TimeToFirstReviewHours = &hours
+	// Time to First Review: time from first review request to first comment or first approval
+	if timestamps.FirstReviewRequest != nil {
+		if firstReviewRequestTime, err := time.Parse(time.RFC3339, *timestamps.FirstReviewRequest); err == nil {
+			var firstReviewActivityTime *time.Time
+			
+			// Find the earliest between first comment and first approval
+			if timestamps.FirstComment != nil {
+				if firstCommentTime, err := time.Parse(time.RFC3339, *timestamps.FirstComment); err == nil {
+					firstReviewActivityTime = &firstCommentTime
 				}
+			}
+			
+			if timestamps.FirstApproval != nil {
+				if firstApprovalTime, err := time.Parse(time.RFC3339, *timestamps.FirstApproval); err == nil {
+					if firstReviewActivityTime == nil || firstApprovalTime.Before(*firstReviewActivityTime) {
+						firstReviewActivityTime = &firstApprovalTime
+					}
+				}
+			}
+			
+			// Calculate time to first review activity if we have one and it's after the review request
+			if firstReviewActivityTime != nil && firstReviewActivityTime.After(firstReviewRequestTime) {
+				hours := firstReviewActivityTime.Sub(firstReviewRequestTime).Hours()
+				metrics.TimeToFirstReviewHours = &hours
 			}
 		}
 	}
