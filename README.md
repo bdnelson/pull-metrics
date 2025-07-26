@@ -41,7 +41,8 @@ go build -buildvcs=false -o pull-metrics .
 
 ### Dependencies
 
-The utility uses only Go standard library packages and requires no external dependencies.
+The utility primarily uses Go standard library packages with minimal external dependencies:
+- `github.com/joho/godotenv` - For loading environment variables from .env files
 
 ## Configuration
 
@@ -55,11 +56,23 @@ The utility uses only Go standard library packages and requires no external depe
 
 1. Go to GitHub Settings > Developer settings > Personal access tokens
 2. Generate a new token with `repo` permissions (or `public_repo` for public repositories only)
-3. Export the token as an environment variable:
+3. Configure the token using one of these methods:
 
+**Option 1: Environment Variable**
 ```bash
 export GITHUB_TOKEN="your_github_token_here"
 ```
+
+**Option 2: .env File (Recommended)**
+```bash
+# Copy the example file
+cp .env.example .env
+
+# Edit .env and add your token
+echo 'GITHUB_TOKEN=your_github_token_here' > .env
+```
+
+The utility will automatically load environment variables from a `.env` file if present, making configuration more convenient. The `.env` file is ignored by git to prevent accidental token exposure.
 
 ## Usage
 
@@ -292,7 +305,9 @@ pull-metrics/
 ├── Makefile          # Build automation
 ├── README.md         # This documentation
 ├── CLAUDE.md         # Development instructions
-└── go.mod           # Go module definition
+├── go.mod            # Go module definition
+├── .env.example      # Example environment configuration
+└── vendor/           # Vendored dependencies
 ```
 
 ### Testing

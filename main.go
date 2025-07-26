@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 type PRDetails struct {
@@ -153,6 +155,10 @@ type PRMetrics struct {
 }
 
 func main() {
+	// Load environment variables from .env file if it exists
+	// This is optional - if the file doesn't exist, it will just use system environment variables
+	_ = godotenv.Load()
+
 	if len(os.Args) != 4 {
 		fmt.Fprintf(os.Stderr, "Usage: %s <organization> <repository> <pr_number>\n", os.Args[0])
 		os.Exit(1)
