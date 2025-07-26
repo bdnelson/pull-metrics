@@ -13,7 +13,7 @@ Pull Metrics retrieves detailed information about a specific GitHub Pull Request
 - **Size Analysis**: Lines of code changed and number of files modified
 - **Timeline Tracking**: Timestamps for key events (first commit, creation, first review request, first comment, approvals, merge, close)
 - **Development Activity**: Count of commits made after the first review request
-- **Jira Integration**: Extracts Jira issue identifiers from PR title, body, or branch name
+- **Jira Integration**: Extracts Jira issue identifiers from PR title, body, or branch name; detects bot users for automated PRs
 - **Performance Metrics**: Calculated metrics for PR review process efficiency and participation
 - **Release Integration**: Identifies which release (if any) includes the merged PR code
 - **Generation Metadata**: Timestamp indicating when the analysis was performed
@@ -152,7 +152,7 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
 | `lines_changed` | integer | Total lines of code impacted (additions + deletions) |
 | `files_changed` | integer | Number of files modified in the PR |
 | `commits_after_first_review` | integer | Number of commits made after the first review request |
-| `jira_issue` | string | Jira issue identifier associated with the PR (e.g., "ABC-123") or "UNKNOWN" if none found |
+| `jira_issue` | string | Jira issue identifier associated with the PR (e.g., "ABC-123"), "BOT" for bot users with no Jira issue, or "UNKNOWN" if none found |
 | `metrics` | object | Calculated performance metrics for the PR review process (optional) |
 | `release_name` | string | Name of the release containing the merged PR (optional) |
 | `timestamps` | object | Collection of all timestamp information for the PR lifecycle (optional) |
@@ -203,6 +203,28 @@ Fields marked as "optional" are only included in the output when applicable:
 ### Timestamp Format
 
 All timestamps are in RFC3339 format in UTC timezone (e.g., `2023-01-01T12:00:00Z`).
+
+### Jira Issue Extraction
+
+The utility automatically extracts Jira issue identifiers from PRs using the following logic:
+
+1. **Search Order**: Searches for Jira patterns in this priority order:
+   - PR title
+   - PR body (if available)
+   - Branch name (head ref)
+
+2. **Pattern Matching**: Matches standard Jira issue formats like `PROJECT-123`, `ABC-1234`, etc.
+   - Project key: 2+ characters (uppercase letters or alphanumeric)
+   - Followed by hyphen and number
+
+3. **Special Cases**:
+   - **Bot Detection**: If no Jira issue is found and the PR author's username contains `[bot]`, returns `"BOT"`
+   - **Not Found**: If no Jira issue is found and the author is not a bot, returns `"UNKNOWN"`
+
+**Examples**:
+- `dependabot[bot]` creating a dependency update → `"BOT"`
+- `github-actions[bot]` creating an automated PR → `"BOT"`
+- Regular user with no Jira issue → `"UNKNOWN"`
 
 ## Development
 

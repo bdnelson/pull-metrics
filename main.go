@@ -708,7 +708,12 @@ func extractJiraIssue(pr *GitHubPR) string {
 		return strings.ToUpper(matches[0])
 	}
 	
-	// If not found, return UNKNOWN
+	// If not found, check if the user is a bot
+	if strings.Contains(pr.User.Login, "[bot]") {
+		return "BOT"
+	}
+	
+	// If not a bot and no Jira issue found, return UNKNOWN
 	return "UNKNOWN"
 }
 

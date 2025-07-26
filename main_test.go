@@ -1047,6 +1047,7 @@ func TestExtractJiraIssue(t *testing.T) {
 				Title: "ABC-123: Fix login bug",
 				Body:  nil,
 				Head:  struct{ Ref string `json:"ref"` }{Ref: "feature/login-fix"},
+				User:  struct{ Login string `json:"login"` }{Login: "developer"},
 			},
 			expected: "ABC-123",
 		},
@@ -1110,6 +1111,7 @@ func TestExtractJiraIssue(t *testing.T) {
 				Title: "Simple bug fix",
 				Body:  stringPtr("Fixed a small issue with the login form"),
 				Head:  struct{ Ref string `json:"ref"` }{Ref: "feature/login-improvements"},
+				User:  struct{ Login string `json:"login"` }{Login: "regular-developer"},
 			},
 			expected: "UNKNOWN",
 		},
@@ -1164,8 +1166,59 @@ func TestExtractJiraIssue(t *testing.T) {
 				Title: "Simple fix",
 				Body:  stringPtr(""),
 				Head:  struct{ Ref string `json:"ref"` }{Ref: "PROJ-456-fix"},
+				User:  struct{ Login string `json:"login"` }{Login: "regular-user"},
 			},
 			expected: "PROJ-456",
+		},
+		{
+			name: "Bot user with no Jira issue - should return BOT",
+			pr: &GitHubPR{
+				Title: "Automated dependency update",
+				Body:  stringPtr("Updates package versions"),
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "dependabot/npm/update-packages"},
+				User:  struct{ Login string `json:"login"` }{Login: "dependabot[bot]"},
+			},
+			expected: "BOT",
+		},
+		{
+			name: "Bot user with different bot marker - should return BOT",
+			pr: &GitHubPR{
+				Title: "Security update",
+				Body:  nil,
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "security-updates"},
+				User:  struct{ Login string `json:"login"` }{Login: "github-actions[bot]"},
+			},
+			expected: "BOT",
+		},
+		{
+			name: "Regular user with no Jira issue - should return UNKNOWN",
+			pr: &GitHubPR{
+				Title: "Simple bug fix",
+				Body:  stringPtr("Fixed a small issue with the login form"),
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "feature/login-improvements"},
+				User:  struct{ Login string `json:"login"` }{Login: "regular-developer"},
+			},
+			expected: "UNKNOWN",
+		},
+		{
+			name: "Bot user with Jira issue - should return Jira issue (not BOT)",
+			pr: &GitHubPR{
+				Title: "AUTO-123: Automated security patch",
+				Body:  stringPtr("Automated security update"),
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "auto-security-patch"},
+				User:  struct{ Login string `json:"login"` }{Login: "security-bot[bot]"},
+			},
+			expected: "AUTO-123",
+		},
+		{
+			name: "Username containing bot but not [bot] marker - should return UNKNOWN",
+			pr: &GitHubPR{
+				Title: "Regular update",
+				Body:  nil,
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "feature/update"},
+				User:  struct{ Login string `json:"login"` }{Login: "robotuser"},
+			},
+			expected: "UNKNOWN",
 		},
 	}
 
