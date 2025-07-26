@@ -240,6 +240,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 	commentors := getCommentors(comments, reviewComments, pr.User.Login)
 	commentorUsernames := getCommentorUsernames(commentors)
 	numComments := countTotalComments(comments, reviewComments)
+	numRequestedReviewers := countAllRequestedReviewers(pr, reviews)
 	timestamps := getTimestamps(pr, reviews, comments, reviewComments, timeline, commits)
 	prSize := calculatePRSize(files)
 	releaseName := findReleaseForMergedPR(pr, releases)
@@ -263,7 +264,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		NumComments:          numComments,
 		NumCommentors:        len(commentors),
 		NumApprovers:         len(approvers),
-		NumRequestedReviewers: len(pr.RequestedReviewers),
+		NumRequestedReviewers: numRequestedReviewers,
 		ChangeRequestsCount:  changeRequestsCount,
 		ChangeRequestCommentsCount: changeRequestCommentsCount,
 		LinesChanged:         prSize.LinesChanged,
@@ -569,6 +570,23 @@ func getCommentorUsernames(commentors map[string]bool) []string {
 	}
 	sort.Strings(usernames) // Sort for consistent output
 	return usernames
+}
+
+func countAllRequestedReviewers(pr *GitHubPR, reviews []GitHubReview) int {
+	// Count all reviewers who were requested to review (both those who reviewed and those who haven't)
+	requestedReviewers := make(map[string]bool)
+	
+	// Add users who have submitted reviews (they must have been requested to review)
+	for _, review := range reviews {
+		requestedReviewers[review.User.Login] = true
+	}
+	
+	// Add current requested reviewers (those who haven't reviewed yet)
+	for _, reviewer := range pr.RequestedReviewers {
+		requestedReviewers[reviewer.Login] = true
+	}
+	
+	return len(requestedReviewers)
 }
 
 func getTimestamps(pr *GitHubPR, reviews []GitHubReview, comments []GitHubComment, reviewComments []GitHubReviewComment, timeline []GitHubTimelineEvent, commits []GitHubCommit) *Timestamps {
@@ -919,7 +937,7 @@ func calculatePRMetrics(pr *GitHubPR, reviews []GitHubReview, comments []GitHubC
 		actualReviewers[review.User.Login] = true
 	}
 	
-	requestedReviewers := len(pr.RequestedReviewers)
+	requestedReviewers := countAllRequestedReviewers(pr, reviews)
 	if requestedReviewers > 0 {
 		ratio := float64(len(actualReviewers)) / float64(requestedReviewers)
 		metrics.ReviewerParticipationRatio = &ratio

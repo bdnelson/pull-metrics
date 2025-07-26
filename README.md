@@ -153,7 +153,7 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
 | `num_comments` | integer | Total number of comments on the PR (both conversation comments and review comments) |
 | `num_commentors` | integer | Number of unique commentors from both conversation comments and review comments (excluding author) |
 | `num_approvers` | integer | Number of users who approved the PR |
-| `num_requested_reviewers` | integer | Number of requested reviewers |
+| `num_requested_reviewers` | integer | Total number of users who were requested to review the PR (includes both those who have reviewed and those who haven't) |
 | `change_requests_count` | integer | Number of reviews that requested changes |
 | `change_request_comments_count` | integer | Number of comments (both conversation and review comments) from users who submitted change requests |
 | `lines_changed` | integer | Total lines of code impacted (additions + deletions) |
@@ -234,6 +234,22 @@ The utility automatically extracts Jira issue identifiers from PRs using the fol
 - `github-actions[bot]` creating an automated PR → `jira_issue: "BOT"`, `is_bot: true`
 - Regular user with no Jira issue → `jira_issue: "UNKNOWN"`, `is_bot: false`
 
+### Requested Reviewers Counting
+
+The `num_requested_reviewers` field provides a comprehensive count of all users who were asked to review the PR:
+
+1. **Includes Reviewers Who Have Reviewed**: Users who have submitted any type of review (approved, requested changes, or commented) are counted because they must have been requested to review
+2. **Includes Pending Reviewers**: Users who are currently in the "requested reviewers" list but haven't reviewed yet
+3. **Deduplication**: If a user appears in both categories (reviewed and still pending), they are counted only once
+4. **Multiple Reviews**: Users who submitted multiple reviews are counted only once
+
+**Rationale**: GitHub removes users from the `requested_reviewers` list once they submit a review, so the raw count would underestimate engagement. This comprehensive approach provides the true scope of review requests.
+
+**Examples**:
+- PR with 3 requested reviewers: 2 have reviewed, 1 is pending → `num_requested_reviewers: 3`
+- PR where reviewer submitted multiple reviews → counted once in `num_requested_reviewers`
+- PR where all requested reviewers have reviewed → `num_requested_reviewers` equals total unique reviewers
+
 ## Development
 
 ### Building and Testing
@@ -287,6 +303,7 @@ The utility includes comprehensive unit tests covering:
 - Commentor counting with author exclusion (including both conversation and review comments)
 - Comment counting (total comment count from both sources)
 - Change request comments counting (comments from users who submitted change requests)
+- Comprehensive requested reviewers counting (includes both reviewed and pending reviewers)
 - Commentor username extraction and sorting
 - UTC timestamp formatting
 - Timestamp extraction from PR events (including review comments for first comment detection)

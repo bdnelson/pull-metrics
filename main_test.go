@@ -2380,6 +2380,242 @@ func TestPRDetailsWithChangeRequestCommentsCount(t *testing.T) {
 	}
 }
 
+func TestCountAllRequestedReviewers(t *testing.T) {
+	tests := []struct {
+		name     string
+		pr       *GitHubPR
+		reviews  []GitHubReview
+		expected int
+	}{
+		{
+			name: "no requested reviewers or reviews",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{},
+			},
+			reviews:  []GitHubReview{},
+			expected: 0,
+		},
+		{
+			name: "only current requested reviewers (no reviews yet)",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{
+					{Login: "reviewer1"},
+					{Login: "reviewer2"},
+				},
+			},
+			reviews:  []GitHubReview{},
+			expected: 2,
+		},
+		{
+			name: "only reviewers who have reviewed (no current requests)",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{},
+			},
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"},
+					State:       "APPROVED",
+					SubmittedAt: "2023-01-01T10:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer2"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T11:00:00Z",
+				},
+			},
+			expected: 2,
+		},
+		{
+			name: "both current requested reviewers and those who reviewed",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{
+					{Login: "reviewer3"},
+					{Login: "reviewer4"},
+				},
+			},
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"},
+					State:       "APPROVED",
+					SubmittedAt: "2023-01-01T10:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer2"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T11:00:00Z",
+				},
+			},
+			expected: 4, // reviewer1, reviewer2, reviewer3, reviewer4
+		},
+		{
+			name: "duplicate reviewers (same user in both categories should count once)",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{
+					{Login: "reviewer1"}, // This user also has a review below
+					{Login: "reviewer3"},
+				},
+			},
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"}, // Same as above - should count once
+					State:       "APPROVED",
+					SubmittedAt: "2023-01-01T10:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer2"},
+					State:       "COMMENTED",
+					SubmittedAt: "2023-01-01T11:00:00Z",
+				},
+			},
+			expected: 3, // reviewer1 (counted once), reviewer2, reviewer3
+		},
+		{
+			name: "multiple reviews from same user should count once",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{},
+			},
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"},
+					State:       "COMMENTED",
+					SubmittedAt: "2023-01-01T10:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"}, // Same user, different review
+					State:       "APPROVED",
+					SubmittedAt: "2023-01-01T12:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer2"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T11:00:00Z",
+				},
+			},
+			expected: 2, // reviewer1 (counted once despite multiple reviews), reviewer2
+		},
+		{
+			name: "mixed review states - all should be counted",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{
+					{Login: "reviewer4"},
+				},
+			},
+			reviews: []GitHubReview{
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer1"},
+					State:       "APPROVED",
+					SubmittedAt: "2023-01-01T10:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer2"},
+					State:       "CHANGES_REQUESTED",
+					SubmittedAt: "2023-01-01T11:00:00Z",
+				},
+				{
+					User: struct {
+						Login string `json:"login"`
+					}{Login: "reviewer3"},
+					State:       "COMMENTED",
+					SubmittedAt: "2023-01-01T12:00:00Z",
+				},
+			},
+			expected: 4, // All review states count as requested reviewers
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := countAllRequestedReviewers(tt.pr, tt.reviews)
+			if result != tt.expected {
+				t.Errorf("countAllRequestedReviewers() = %d, want %d", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPRDetailsWithUpdatedRequestedReviewersCount(t *testing.T) {
+	// Test that the updated requested reviewers count includes both current and past reviewers
+	prDetails := &PRDetails{
+		OrganizationName:      "test-org",
+		RepositoryName:        "test-repo",
+		PRNumber:              123,
+		PRTitle:               "Test PR with comprehensive reviewer count",
+		AuthorUsername:        "author",
+		ApproverUsernames:     []string{"reviewer1"},
+		CommentorUsernames:    []string{"reviewer1", "reviewer2"},
+		State:                 "open",
+		NumComments:           5,
+		NumCommentors:         2,
+		NumApprovers:          1,
+		NumRequestedReviewers: 4, // Should include both reviewed and pending reviewers
+		ChangeRequestsCount:   1,
+		JiraIssue:             "TEST-123",
+		IsBot:                 false,
+		GeneratedAt:           "2023-01-01T20:00:00Z",
+	}
+
+	// Marshal to JSON
+	jsonBytes, err := json.Marshal(prDetails)
+	if err != nil {
+		t.Fatalf("Failed to marshal JSON: %v", err)
+	}
+
+	// Unmarshal to check structure
+	var result map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	// Verify num_requested_reviewers field reflects comprehensive count
+	if numRequestedReviewers, ok := result["num_requested_reviewers"].(float64); !ok || int(numRequestedReviewers) != 4 {
+		t.Errorf("Expected num_requested_reviewers to be 4, got %v", result["num_requested_reviewers"])
+	}
+
+	// Verify the relationship makes sense: requested reviewers should be >= approvers
+	numApprovers := int(result["num_approvers"].(float64))
+	numRequestedReviewers := int(result["num_requested_reviewers"].(float64))
+	
+	if numRequestedReviewers < numApprovers {
+		t.Errorf("num_requested_reviewers (%d) should be >= num_approvers (%d)", numRequestedReviewers, numApprovers)
+	}
+}
+
 func stringPtr(s string) *string {
 	return &s
 }
