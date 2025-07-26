@@ -1613,6 +1613,7 @@ func TestJSONOutputStructure(t *testing.T) {
 		AuthorUsername:   "author",
 		State:            "open",
 		JiraIssue:        "TEST-123",
+		IsBot:            false,
 		GeneratedAt:      "2023-01-01T20:00:00Z",
 		Timestamps: &PRTimestamps{
 			FirstCommit:       stringPtr("2023-01-01T09:00:00Z"),
@@ -1671,9 +1672,118 @@ func TestJSONOutputStructure(t *testing.T) {
 		t.Errorf("Expected generated_at to be '2023-01-01T20:00:00Z' at root level, got %v", result["generated_at"])
 	}
 	
+	// Verify that is_bot IS at the root level and is false
+	if result["is_bot"] != false {
+		t.Errorf("Expected is_bot to be false at root level, got %v", result["is_bot"])
+	}
+	
 	// Verify that generated_at is NOT in the timestamps object
 	if _, exists := timestamps["generated_at"]; exists {
 		t.Error("generated_at should not exist in timestamps object")
+	}
+}
+
+func TestJSONOutputStructureBot(t *testing.T) {
+	// Create a sample PRDetails with bot user
+	prDetails := &PRDetails{
+		OrganizationName: "test-org",
+		RepositoryName:   "test-repo",
+		PRNumber:         456,
+		PRTitle:          "Automated security update",
+		AuthorUsername:   "dependabot[bot]",
+		State:            "open",
+		JiraIssue:        "BOT",
+		IsBot:            true,
+		GeneratedAt:      "2023-01-01T20:00:00Z",
+		Timestamps: &PRTimestamps{
+			CreatedAt:         stringPtr("2023-01-01T10:00:00Z"),
+			FirstReviewRequest: stringPtr("2023-01-01T11:00:00Z"),
+		},
+	}
+
+	// Marshal to JSON
+	jsonBytes, err := json.Marshal(prDetails)
+	if err != nil {
+		t.Fatalf("Failed to marshal JSON: %v", err)
+	}
+
+	// Unmarshal to check structure
+	var result map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	// Verify is_bot is true for bot user
+	if result["is_bot"] != true {
+		t.Errorf("Expected is_bot to be true for bot user, got %v", result["is_bot"])
+	}
+	
+	// Verify jira_issue is BOT for bot user with no Jira issue
+	if result["jira_issue"] != "BOT" {
+		t.Errorf("Expected jira_issue to be 'BOT' for bot user, got %v", result["jira_issue"])
+	}
+	
+	// Verify author_username contains [bot]
+	if result["author_username"] != "dependabot[bot]" {
+		t.Errorf("Expected author_username to be 'dependabot[bot]', got %v", result["author_username"])
+	}
+}
+
+func TestIsBot(t *testing.T) {
+	tests := []struct {
+		name     string
+		username string
+		expected bool
+	}{
+		{
+			name:     "dependabot - should be bot",
+			username: "dependabot[bot]",
+			expected: true,
+		},
+		{
+			name:     "github-actions - should be bot",
+			username: "github-actions[bot]",
+			expected: true,
+		},
+		{
+			name:     "security bot - should be bot",
+			username: "security-bot[bot]",
+			expected: true,
+		},
+		{
+			name:     "regular user - should not be bot",
+			username: "regular-developer",
+			expected: false,
+		},
+		{
+			name:     "username with bot but no [bot] marker - should not be bot",
+			username: "robotuser",
+			expected: false,
+		},
+		{
+			name:     "username with BOT but no [bot] marker - should not be bot",
+			username: "BOTUSER",
+			expected: false,
+		},
+		{
+			name:     "empty username - should not be bot",
+			username: "",
+			expected: false,
+		},
+		{
+			name:     "just [bot] - should be bot",
+			username: "[bot]",
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isBot(tt.username)
+			if result != tt.expected {
+				t.Errorf("isBot(%q) = %v, want %v", tt.username, result, tt.expected)
+			}
+		})
 	}
 }
 

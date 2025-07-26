@@ -30,6 +30,7 @@ type PRDetails struct {
 	FilesChanged      int      `json:"files_changed"`
 	CommitsAfterFirstReview int `json:"commits_after_first_review"`
 	JiraIssue         string   `json:"jira_issue"`
+	IsBot             bool     `json:"is_bot"`
 	Metrics           *PRMetrics `json:"metrics,omitempty"`
 	ReleaseName       *string  `json:"release_name,omitempty"`
 	Timestamps        *PRTimestamps `json:"timestamps,omitempty"`
@@ -248,6 +249,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		FilesChanged:         prSize.FilesChanged,
 		CommitsAfterFirstReview: commitsAfterFirstReview,
 		JiraIssue:            jiraIssue,
+		IsBot:                isBot(pr.User.Login),
 		Metrics:              metrics,
 		GeneratedAt:          time.Now().UTC().Format(time.RFC3339),
 	}
@@ -686,6 +688,10 @@ func countChangeRequests(reviews []GitHubReview) int {
 	return count
 }
 
+func isBot(username string) bool {
+	return strings.Contains(username, "[bot]")
+}
+
 func extractJiraIssue(pr *GitHubPR) string {
 	// Jira issue pattern: PROJECT-123, ABC-1234, etc.
 	// Matches project key (2+ uppercase letters or alphanumeric) followed by hyphen and number
@@ -709,7 +715,7 @@ func extractJiraIssue(pr *GitHubPR) string {
 	}
 	
 	// If not found, check if the user is a bot
-	if strings.Contains(pr.User.Login, "[bot]") {
+	if isBot(pr.User.Login) {
 		return "BOT"
 	}
 	

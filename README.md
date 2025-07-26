@@ -8,7 +8,7 @@ Pull Metrics retrieves detailed information about a specific GitHub Pull Request
 
 ## Features
 
-- **Basic PR Information**: Organization, repository, PR number, title, web URL, node ID, author, state
+- **Basic PR Information**: Organization, repository, PR number, title, web URL, node ID, author, state, bot detection
 - **Review Metrics**: Number of commentors, approvers, requested reviewers, change requests, and their usernames
 - **Size Analysis**: Lines of code changed and number of files modified
 - **Timeline Tracking**: Timestamps for key events (first commit, creation, first review request, first comment, approvals, merge, close)
@@ -110,6 +110,7 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
   "files_changed": 0,
   "commits_after_first_review": 0,
   "jira_issue": "string",
+  "is_bot": false,
   "metrics": {
     "time_to_first_review_request_hours": 2.0,
     "time_to_first_review_hours": 1.5,
@@ -153,6 +154,7 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
 | `files_changed` | integer | Number of files modified in the PR |
 | `commits_after_first_review` | integer | Number of commits made after the first review request |
 | `jira_issue` | string | Jira issue identifier associated with the PR (e.g., "ABC-123"), "BOT" for bot users with no Jira issue, or "UNKNOWN" if none found |
+| `is_bot` | boolean | Indicates whether the PR was created by a bot (identified by "[bot]" in username) |
 | `metrics` | object | Calculated performance metrics for the PR review process (optional) |
 | `release_name` | string | Name of the release containing the merged PR (optional) |
 | `timestamps` | object | Collection of all timestamp information for the PR lifecycle (optional) |
@@ -218,13 +220,13 @@ The utility automatically extracts Jira issue identifiers from PRs using the fol
    - Followed by hyphen and number
 
 3. **Special Cases**:
-   - **Bot Detection**: If no Jira issue is found and the PR author's username contains `[bot]`, returns `"BOT"`
-   - **Not Found**: If no Jira issue is found and the author is not a bot, returns `"UNKNOWN"`
+   - **Bot Detection**: If no Jira issue is found and the PR author's username contains `[bot]`, returns `"BOT"` (the `is_bot` field is also set to `true`)
+   - **Not Found**: If no Jira issue is found and the author is not a bot, returns `"UNKNOWN"` (the `is_bot` field is set to `false`)
 
 **Examples**:
-- `dependabot[bot]` creating a dependency update → `"BOT"`
-- `github-actions[bot]` creating an automated PR → `"BOT"`
-- Regular user with no Jira issue → `"UNKNOWN"`
+- `dependabot[bot]` creating a dependency update → `jira_issue: "BOT"`, `is_bot: true`
+- `github-actions[bot]` creating an automated PR → `jira_issue: "BOT"`, `is_bot: true`
+- Regular user with no Jira issue → `jira_issue: "UNKNOWN"`, `is_bot: false`
 
 ## Development
 
@@ -333,6 +335,7 @@ $ ./pull-metrics microsoft vscode 12345
   "files_changed": 7,
   "commits_after_first_review": 2,
   "jira_issue": "VSCODE-123",
+  "is_bot": false,
   "metrics": {
     "time_to_first_review_request_hours": 0.5,
     "time_to_first_review_hours": 2.5,
