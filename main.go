@@ -2,15 +2,16 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/ardanlabs/conf/v3"
 	"github.com/joho/godotenv"
 )
 
@@ -154,35 +155,37 @@ type PRMetrics struct {
 	ReviewerParticipationRatio *float64 `json:"reviewer_participation_ratio,omitempty"`
 }
 
+type Config struct {
+	Organization string `conf:"pos:0,help:GitHub organization or username"`
+	Repository   string `conf:"pos:1,help:Repository name"`
+	PRNumber     int    `conf:"pos:2,help:Pull Request number"`
+	GitHubToken  string `conf:"env:GITHUB_TOKEN,help:GitHub Personal Access Token"`
+}
+
 func main() {
 	// Load environment variables from .env file if it exists
 	// This is optional - if the file doesn't exist, it will just use system environment variables
 	_ = godotenv.Load()
 
-	if len(os.Args) != 4 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <organization> <repository> <pr_number>\n", os.Args[0])
-		os.Exit(1)
-	}
-
-	org := os.Args[1]
-	repo := os.Args[2]
-	prNumStr := os.Args[3]
-
-	prNumber, err := strconv.Atoi(prNumStr)
+	cfg := Config{}
+	help, err := conf.Parse("", &cfg)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Invalid PR number: %s\n", prNumStr)
+		if errors.Is(err, conf.ErrHelpWanted) {
+			fmt.Fprintf(os.Stdout, "%s", help)
+			return
+		}
+		fmt.Fprintf(os.Stderr, "Error parsing configuration: %v\n", err)
 		os.Exit(1)
 	}
 
-	token := os.Getenv("GITHUB_TOKEN")
-	if token == "" {
+	if cfg.GitHubToken == "" {
 		fmt.Fprintf(os.Stderr, "GITHUB_TOKEN environment variable is required\n")
 		os.Exit(1)
 	}
 
 	client := &http.Client{}
 
-	prDetails, err := getPRDetails(client, token, org, repo, prNumber)
+	prDetails, err := getPRDetails(client, cfg.GitHubToken, cfg.Organization, cfg.Repository, cfg.PRNumber)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error fetching PR details: %v\n", err)
 		os.Exit(1)

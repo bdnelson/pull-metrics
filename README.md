@@ -41,8 +41,9 @@ go build -buildvcs=false -o pull-metrics .
 
 ### Dependencies
 
-The utility primarily uses Go standard library packages with minimal external dependencies:
+The utility uses Go standard library packages with minimal external dependencies:
 - `github.com/joho/godotenv` - For loading environment variables from .env files
+- `github.com/ardanlabs/conf/v3` - For configuration management with environment variables, command line arguments, and help/usage messages
 
 ## Configuration
 
@@ -78,24 +79,49 @@ The utility will automatically load environment variables from a `.env` file if 
 
 ### Command Line Syntax
 
+The utility supports both positional arguments and named options:
+
 ```bash
+# Using positional arguments
 ./pull-metrics <organization> <repository> <pr_number>
+
+# Using named options
+./pull-metrics --organization <org> --repository <repo> --pr-number <number>
+
+# Mixed usage (positional arguments preferred)
+./pull-metrics microsoft vscode --pr-number 12345
 ```
 
 ### Parameters
 
-- `organization`: GitHub organization or username
-- `repository`: Repository name
-- `pr_number`: Pull Request number (integer)
+- `organization`: GitHub organization or username (positional argument 1)
+- `repository`: Repository name (positional argument 2)  
+- `pr_number`: Pull Request number, integer (positional argument 3)
+
+### Help and Usage
+
+Display help information and available options:
+
+```bash
+./pull-metrics --help
+```
+
+This shows all configuration options, including environment variable names and descriptions.
 
 ### Examples
 
 ```bash
-# Analyze PR #123 in the microsoft/vscode repository
+# Analyze PR #123 in the microsoft/vscode repository (positional arguments)
 ./pull-metrics microsoft vscode 123
 
-# Analyze PR #456 in a personal repository
-./pull-metrics username my-project 456
+# Analyze PR #456 in a personal repository (named options)
+./pull-metrics --organization username --repository my-project --pr-number 456
+
+# Mixed usage
+./pull-metrics microsoft vscode --pr-number 123
+
+# Get help information
+./pull-metrics --help
 ```
 
 ## Output
@@ -335,10 +361,11 @@ The utility includes comprehensive unit tests covering:
 The utility handles various error conditions gracefully:
 
 - **Missing GitHub Token**: Exits with error message to STDERR
-- **Invalid Arguments**: Shows usage information and exits
+- **Invalid Arguments**: Shows detailed configuration error messages and exits
+- **Invalid PR Numbers**: Reports type conversion errors with specific details  
+- **Missing Required Arguments**: Automatic help display with `--help` flag
 - **GitHub API Errors**: Reports API status codes and error details
 - **Network Issues**: Reports connection failures
-- **Invalid PR Numbers**: Reports parsing errors
 - **Rate Limiting**: Returns GitHub API rate limit responses
 
 ## Rate Limiting
@@ -406,11 +433,27 @@ $ ./pull-metrics microsoft vscode 12345
 ### Error Output
 
 ```bash
-$ ./pull-metrics microsoft vscode abc
-Invalid PR number: abc
+$ ./pull-metrics --pr-number abc
+Error parsing configuration: parsing config: conf: error assigning to field PRNumber: converting 'abc' to type int. details: strconv.ParseInt: parsing "abc": invalid syntax
 
 $ ./pull-metrics microsoft vscode 99999
 Error fetching PR details: GitHub API returned status 404
+
+$ ./pull-metrics --help
+Usage: pull-metrics [options...] [arguments...]
+
+OPTIONS
+      --git-hub-token  <string>    GitHub Personal Access Token
+  -h, --help                       display this help message
+      --organization   <string>    GitHub organization or username
+      --pr-number      <int>       Pull Request number
+      --repository     <string>    Repository name
+
+ENVIRONMENT
+  GITHUB_TOKEN  <string>    GitHub Personal Access Token
+  ORGANIZATION  <string>    GitHub organization or username
+  PR_NUMBER     <int>       Pull Request number
+  REPOSITORY    <string>    Repository name
 ```
 
 ## License
