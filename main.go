@@ -16,6 +16,9 @@ type PRDetails struct {
 	OrganizationName  string   `json:"organization_name"`
 	RepositoryName     string   `json:"repository_name"`
 	PRNumber          int      `json:"pr_number"`
+	PRTitle           string   `json:"pr_title"`
+	PRWebURL          string   `json:"pr_web_url"`
+	PRNodeID          string   `json:"pr_node_id"`
 	AuthorUsername    string   `json:"author_username"`
 	ApproverUsernames []string `json:"approver_usernames"`
 	State             string   `json:"state"`
@@ -40,10 +43,12 @@ type PRDetails struct {
 }
 
 type GitHubPR struct {
-	Number int `json:"number"`
-	Title  string `json:"title"`
-	Body   *string `json:"body"`
-	User   struct {
+	Number  int     `json:"number"`
+	Title   string  `json:"title"`
+	Body    *string `json:"body"`
+	HTMLURL string  `json:"html_url"`
+	NodeID  string  `json:"node_id"`
+	User    struct {
 		Login string `json:"login"`
 	} `json:"user"`
 	Head struct {
@@ -222,6 +227,9 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		OrganizationName:     org,
 		RepositoryName:        repo,
 		PRNumber:             prNumber,
+		PRTitle:              pr.Title,
+		PRWebURL:             pr.HTMLURL,
+		PRNodeID:             pr.NodeID,
 		AuthorUsername:       pr.User.Login,
 		ApproverUsernames:    approvers,
 		State:                state,

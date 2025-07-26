@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(go mod init:*)",
-      "Bash(make:*)"
+      "Bash(make:*)",
+      "Bash(ls:*)"
     ],
     "deny": []
   }

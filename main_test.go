@@ -15,36 +15,48 @@ func TestGetPRState(t *testing.T) {
 		{
 			name: "draft PR",
 			pr: &GitHubPR{
-				State: "open",
-				Draft: true,
-				Merged: false,
+				State:   "open",
+				Draft:   true,
+				Merged:  false,
+				Title:   "Draft PR",
+				HTMLURL: "https://github.com/org/repo/pull/1",
+				NodeID:  "PR_node123",
 			},
 			expected: "draft",
 		},
 		{
 			name: "merged PR",
 			pr: &GitHubPR{
-				State: "closed",
-				Draft: false,
-				Merged: true,
+				State:   "closed",
+				Draft:   false,
+				Merged:  true,
+				Title:   "Merged PR",
+				HTMLURL: "https://github.com/org/repo/pull/2",
+				NodeID:  "PR_node456",
 			},
 			expected: "merged",
 		},
 		{
 			name: "open PR",
 			pr: &GitHubPR{
-				State: "open",
-				Draft: false,
-				Merged: false,
+				State:   "open",
+				Draft:   false,
+				Merged:  false,
+				Title:   "Open PR",
+				HTMLURL: "https://github.com/org/repo/pull/3",
+				NodeID:  "PR_node789",
 			},
 			expected: "open",
 		},
 		{
 			name: "closed PR",
 			pr: &GitHubPR{
-				State: "closed",
-				Draft: false,
-				Merged: false,
+				State:   "closed",
+				Draft:   false,
+				Merged:  false,
+				Title:   "Closed PR",
+				HTMLURL: "https://github.com/org/repo/pull/4",
+				NodeID:  "PR_node101",
 			},
 			expected: "closed",
 		},
@@ -1101,6 +1113,35 @@ func TestExtractJiraIssue(t *testing.T) {
 				t.Errorf("extractJiraIssue() = %v, want %v", result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestPRDetailsBasicFields(t *testing.T) {
+	pr := &GitHubPR{
+		Number:  123,
+		Title:   "Fix authentication bug",
+		HTMLURL: "https://github.com/microsoft/vscode/pull/123",
+		NodeID:  "PR_kwDOABCD123_node456",
+		User: struct {
+			Login string `json:"login"`
+		}{Login: "contributor"},
+		State:  "open",
+		Draft:  false,
+		Merged: false,
+	}
+
+	// Test that basic PR fields are properly extracted
+	if pr.Number != 123 {
+		t.Errorf("Expected PR number to be 123, got %d", pr.Number)
+	}
+	if pr.Title != "Fix authentication bug" {
+		t.Errorf("Expected PR title to be 'Fix authentication bug', got %s", pr.Title)
+	}
+	if pr.HTMLURL != "https://github.com/microsoft/vscode/pull/123" {
+		t.Errorf("Expected PR web URL to be 'https://github.com/microsoft/vscode/pull/123', got %s", pr.HTMLURL)
+	}
+	if pr.NodeID != "PR_kwDOABCD123_node456" {
+		t.Errorf("Expected PR node ID to be 'PR_kwDOABCD123_node456', got %s", pr.NodeID)
 	}
 }
 

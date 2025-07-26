@@ -8,7 +8,7 @@ Pull Metrics retrieves detailed information about a specific GitHub Pull Request
 
 ## Features
 
-- **Basic PR Information**: Organization, repository, PR number, author, state
+- **Basic PR Information**: Organization, repository, PR number, title, web URL, node ID, author, state
 - **Review Metrics**: Number of commentors, approvers, requested reviewers, change requests, and their usernames
 - **Size Analysis**: Lines of code changed and number of files modified
 - **Timeline Tracking**: Timestamps for key events (creation, first review request, first comment, approvals, merge, close)
@@ -96,6 +96,9 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
   "organization_name": "string",
   "repository_name": "string", 
   "pr_number": 123,
+  "pr_title": "string",
+  "pr_web_url": "string",
+  "pr_node_id": "string",
   "author_username": "string",
   "approver_usernames": ["string"],
   "state": "string",
@@ -132,6 +135,9 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
 | `organization_name` | string | GitHub organization or username |
 | `repository_name` | string | Repository name |
 | `pr_number` | integer | Pull Request number |
+| `pr_title` | string | Pull Request title |
+| `pr_web_url` | string | GitHub web URL for the Pull Request |
+| `pr_node_id` | string | GitHub GraphQL node ID for the Pull Request |
 | `author_username` | string | Username of the PR author |
 | `approver_usernames` | array | List of usernames who approved the PR |
 | `state` | string | PR state: "draft", "open", "merged", or "closed" |
@@ -276,6 +282,9 @@ $ ./pull-metrics microsoft vscode 12345
   "organization_name": "microsoft",
   "repository_name": "vscode",
   "pr_number": 12345,
+  "pr_title": "Fix authentication timeout issue",
+  "pr_web_url": "https://github.com/microsoft/vscode/pull/12345",
+  "pr_node_id": "PR_kwDOABCD123_node456",
   "author_username": "contributor",
   "approver_usernames": ["maintainer1", "maintainer2"],
   "state": "merged",
