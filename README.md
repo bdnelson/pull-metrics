@@ -482,7 +482,72 @@ ENVIRONMENT
 
 ## License
 
-This utility was generated as part of a development exercise and follows the project's existing license terms.
+See the [LICENSE](LICENSE.txt) file for license rights and limitations (MIT).
+
+## CI/CD Pipeline
+
+This project includes comprehensive GitHub Actions workflows for continuous integration and deployment:
+
+### Continuous Integration (CI)
+
+The CI pipeline runs on every push and pull request to `main` and `develop` branches:
+
+**Test Job:**
+- Tests across Go versions 1.19, 1.20, and 1.21
+- Runs all unit tests with race detection
+- Generates test coverage reports
+- Uploads coverage to Codecov
+
+**Lint Job:**
+- Runs `golint` for code style
+- Runs `go vet` for static analysis  
+- Validates `gofmt` formatting
+
+**Build Job:**
+- Builds the application binary
+- Tests binary execution with `--help` flag
+- Uploads build artifacts
+
+**Security Job:**
+- Runs `gosec` security scanner
+- Runs `govulncheck` vulnerability scanner
+
+**Cross-Compile Job:**
+- Builds for multiple platforms (Linux, macOS, Windows)
+- Builds for multiple architectures (AMD64, ARM64)
+- Uploads cross-compiled binaries
+
+**Dependency Check Job:**
+- Verifies vendor directory is up to date
+- Checks `go.mod` tidiness
+- Identifies outdated dependencies
+
+### Release Pipeline
+
+Automated releases are triggered when tags matching `v*` are pushed:
+
+- Builds optimized binaries for all supported platforms
+- Generates checksums for verification
+- Creates GitHub releases with:
+  - Generated changelog from git commits
+  - Installation instructions
+  - Binary assets for all platforms
+  - Checksum verification file
+
+### Running CI Locally
+
+```bash
+# Run all CI checks
+make check
+
+# Individual checks
+make lint
+make test
+make build
+
+# Test cross-compilation
+GOOS=linux GOARCH=amd64 go build -buildvcs=false .
+```
 
 ## Contributing
 
@@ -491,3 +556,4 @@ This utility was developed following the specifications in `CLAUDE.md`. Any cont
 - Using Go as the primary language
 - Following the existing code patterns and error handling
 - Ensuring JSON output format consistency
+- All CI checks must pass before merging
