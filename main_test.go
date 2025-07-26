@@ -1220,6 +1220,56 @@ func TestExtractJiraIssue(t *testing.T) {
 			},
 			expected: "UNKNOWN",
 		},
+		{
+			name: "CVE identifier in title - should be excluded and return UNKNOWN",
+			pr: &GitHubPR{
+				Title: "Security fix for CVE-2023-1234",
+				Body:  nil,
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "security/cve-fix"},
+				User:  struct{ Login string `json:"login"` }{Login: "security-team"},
+			},
+			expected: "UNKNOWN",
+		},
+		{
+			name: "CVE identifier in body - should be excluded and return UNKNOWN",
+			pr: &GitHubPR{
+				Title: "Security patch",
+				Body:  stringPtr("This addresses CVE-2023-5678 vulnerability"),
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "security/patch"},
+				User:  struct{ Login string `json:"login"` }{Login: "security-team"},
+			},
+			expected: "UNKNOWN",
+		},
+		{
+			name: "CVE identifier in branch name - should be excluded and return UNKNOWN",
+			pr: &GitHubPR{
+				Title: "Security update",
+				Body:  nil,
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "fix/CVE-2023-9999-security-patch"},
+				User:  struct{ Login string `json:"login"` }{Login: "security-team"},
+			},
+			expected: "UNKNOWN",
+		},
+		{
+			name: "Mixed CVE and valid Jira - should return valid Jira issue",
+			pr: &GitHubPR{
+				Title: "SECURITY-123: Fix CVE-2023-1111 vulnerability",
+				Body:  stringPtr("Addresses security issue CVE-2023-1111"),
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "security/SECURITY-123-cve-fix"},
+				User:  struct{ Login string `json:"login"` }{Login: "security-team"},
+			},
+			expected: "SECURITY-123",
+		},
+		{
+			name: "Multiple CVE identifiers - should be excluded and return UNKNOWN",
+			pr: &GitHubPR{
+				Title: "Fix CVE-2023-1111 and CVE-2023-2222",
+				Body:  stringPtr("Security patch for multiple CVEs"),
+				Head:  struct{ Ref string `json:"ref"` }{Ref: "security/multi-cve-fix"},
+				User:  struct{ Login string `json:"login"` }{Login: "security-team"},
+			},
+			expected: "UNKNOWN",
+		},
 	}
 
 	for _, tt := range tests {

@@ -826,26 +826,40 @@ func isBot(username string) bool {
 	return strings.Contains(username, "[bot]")
 }
 
+func findValidJiraIssue(pattern *regexp.Regexp, text string) string {
+	// Find all matches in the text
+	matches := pattern.FindAllString(text, -1)
+	for _, match := range matches {
+		upperMatch := strings.ToUpper(match)
+		// Exclude CVE identifiers (security vulnerability IDs)
+		if !strings.HasPrefix(upperMatch, "CVE-") {
+			return upperMatch
+		}
+	}
+	return ""
+}
+
 func extractJiraIssue(pr *GitHubPR) string {
 	// Jira issue pattern: PROJECT-123, ABC-1234, etc.
 	// Matches project key (2+ uppercase letters or alphanumeric) followed by hyphen and number
+	// Excludes CVE- identifiers which are security vulnerability IDs, not Jira issues
 	jiraPattern := regexp.MustCompile(`\b[A-Z][A-Z0-9]+-\d+\b`)
 	
 	// Search in PR title first
-	if matches := jiraPattern.FindStringSubmatch(pr.Title); len(matches) > 0 {
-		return strings.ToUpper(matches[0])
+	if issue := findValidJiraIssue(jiraPattern, pr.Title); issue != "" {
+		return issue
 	}
 	
 	// Search in PR body if available
 	if pr.Body != nil && *pr.Body != "" {
-		if matches := jiraPattern.FindStringSubmatch(*pr.Body); len(matches) > 0 {
-			return strings.ToUpper(matches[0])
+		if issue := findValidJiraIssue(jiraPattern, *pr.Body); issue != "" {
+			return issue
 		}
 	}
 	
 	// Search in branch name (head ref)
-	if matches := jiraPattern.FindStringSubmatch(strings.ToUpper(pr.Head.Ref)); len(matches) > 0 {
-		return strings.ToUpper(matches[0])
+	if issue := findValidJiraIssue(jiraPattern, strings.ToUpper(pr.Head.Ref)); issue != "" {
+		return issue
 	}
 	
 	// If not found, check if the user is a bot

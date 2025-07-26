@@ -263,6 +263,7 @@ The utility automatically extracts Jira issue identifiers from PRs using the fol
 2. **Pattern Matching**: Matches standard Jira issue formats like `PROJECT-123`, `ABC-1234`, etc.
    - Project key: 2+ characters (uppercase letters or alphanumeric)
    - Followed by hyphen and number
+   - **Excludes CVE identifiers**: Security vulnerability identifiers starting with `CVE-` (e.g., `CVE-2023-1234`) are excluded as they are not Jira issues
 
 3. **Special Cases**:
    - **Bot Detection**: If no Jira issue is found and the PR author's username contains `[bot]`, returns `"BOT"` (the `is_bot` field is also set to `true`)
@@ -272,6 +273,8 @@ The utility automatically extracts Jira issue identifiers from PRs using the fol
 - `dependabot[bot]` creating a dependency update → `jira_issue: "BOT"`, `is_bot: true`
 - `github-actions[bot]` creating an automated PR → `jira_issue: "BOT"`, `is_bot: true`
 - Regular user with no Jira issue → `jira_issue: "UNKNOWN"`, `is_bot: false`
+- Security fix with `CVE-2023-1234` but no Jira issue → `jira_issue: "UNKNOWN"`, `is_bot: false`
+- PR with both `SECURITY-123` and `CVE-2023-1234` → `jira_issue: "SECURITY-123"`, `is_bot: false`
 
 ### Requested Reviewers Counting
 
