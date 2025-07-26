@@ -21,7 +21,9 @@ type PRDetails struct {
 	PRNodeID          string   `json:"pr_node_id"`
 	AuthorUsername    string   `json:"author_username"`
 	ApproverUsernames []string `json:"approver_usernames"`
+	CommentorUsernames []string `json:"commentor_usernames"`
 	State             string   `json:"state"`
+	NumComments       int      `json:"num_comments"`
 	NumCommentors     int      `json:"num_commentors"`
 	NumApprovers      int      `json:"num_approvers"`
 	NumRequestedReviewers int  `json:"num_requested_reviewers"`
@@ -235,6 +237,8 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 	state := getPRState(pr)
 	approvers := getApprovers(reviews)
 	commentors := getCommentors(comments, reviewComments, pr.User.Login)
+	commentorUsernames := getCommentorUsernames(commentors)
+	numComments := countTotalComments(comments, reviewComments)
 	timestamps := getTimestamps(pr, reviews, comments, reviewComments, timeline, commits)
 	prSize := calculatePRSize(files)
 	releaseName := findReleaseForMergedPR(pr, releases)
@@ -252,7 +256,9 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		PRNodeID:             pr.NodeID,
 		AuthorUsername:       pr.User.Login,
 		ApproverUsernames:    approvers,
+		CommentorUsernames:   commentorUsernames,
 		State:                state,
+		NumComments:          numComments,
 		NumCommentors:        len(commentors),
 		NumApprovers:         len(approvers),
 		NumRequestedReviewers: len(pr.RequestedReviewers),
@@ -547,6 +553,19 @@ func getCommentors(comments []GitHubComment, reviewComments []GitHubReviewCommen
 	}
 	
 	return commentors
+}
+
+func countTotalComments(comments []GitHubComment, reviewComments []GitHubReviewComment) int {
+	return len(comments) + len(reviewComments)
+}
+
+func getCommentorUsernames(commentors map[string]bool) []string {
+	usernames := make([]string, 0, len(commentors))
+	for username := range commentors {
+		usernames = append(usernames, username)
+	}
+	sort.Strings(usernames) // Sort for consistent output
+	return usernames
 }
 
 func getTimestamps(pr *GitHubPR, reviews []GitHubReview, comments []GitHubComment, reviewComments []GitHubReviewComment, timeline []GitHubTimelineEvent, commits []GitHubCommit) *Timestamps {

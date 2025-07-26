@@ -101,7 +101,9 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
   "pr_node_id": "string",
   "author_username": "string",
   "approver_usernames": ["string"],
+  "commentor_usernames": ["string"],
   "state": "string",
+  "num_comments": 0,
   "num_commentors": 0,
   "num_approvers": 0,
   "num_requested_reviewers": 0,
@@ -145,7 +147,9 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
 | `pr_node_id` | string | GitHub GraphQL node ID for the Pull Request |
 | `author_username` | string | Username of the PR author |
 | `approver_usernames` | array | List of usernames who approved the PR |
+| `commentor_usernames` | array | List of usernames who commented on the PR from both conversation comments and review comments (excluding author), sorted alphabetically |
 | `state` | string | PR state: "draft", "open", "merged", or "closed" |
+| `num_comments` | integer | Total number of comments on the PR (both conversation comments and review comments) |
 | `num_commentors` | integer | Number of unique commentors from both conversation comments and review comments (excluding author) |
 | `num_approvers` | integer | Number of users who approved the PR |
 | `num_requested_reviewers` | integer | Number of requested reviewers |
@@ -279,6 +283,8 @@ The utility includes comprehensive unit tests covering:
 - PR state determination
 - Approver identification and counting
 - Commentor counting with author exclusion (including both conversation and review comments)
+- Comment counting (total comment count from both sources)
+- Commentor username extraction and sorting
 - UTC timestamp formatting
 - Timestamp extraction from PR events (including review comments for first comment detection)
 - PR size calculation
@@ -287,6 +293,7 @@ The utility includes comprehensive unit tests covering:
 - Jira issue extraction and identification
 - PR performance metrics calculations
 - Review comments integration and processing
+- JSON output structure validation for new fields
 
 ## Error Handling
 
@@ -328,7 +335,9 @@ $ ./pull-metrics microsoft vscode 12345
   "pr_node_id": "PR_kwDOABCD123_node456",
   "author_username": "contributor",
   "approver_usernames": ["maintainer1", "maintainer2"],
+  "commentor_usernames": ["reviewer1", "reviewer2", "user1"],
   "state": "merged",
+  "num_comments": 12,
   "num_commentors": 3,
   "num_approvers": 2,
   "num_requested_reviewers": 2,

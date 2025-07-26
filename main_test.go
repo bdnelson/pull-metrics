@@ -1972,6 +1972,177 @@ func TestGetTimestampsWithReviewComments(t *testing.T) {
 	}
 }
 
+func TestCountTotalComments(t *testing.T) {
+	tests := []struct {
+		name           string
+		comments       []GitHubComment
+		reviewComments []GitHubReviewComment
+		expected       int
+	}{
+		{
+			name:           "no comments",
+			comments:       []GitHubComment{},
+			reviewComments: []GitHubReviewComment{},
+			expected:       0,
+		},
+		{
+			name: "only regular comments",
+			comments: []GitHubComment{
+				{User: struct{ Login string `json:"login"` }{Login: "user1"}, CreatedAt: "2023-01-01T10:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "user2"}, CreatedAt: "2023-01-01T11:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "user3"}, CreatedAt: "2023-01-01T12:00:00Z"},
+			},
+			reviewComments: []GitHubReviewComment{},
+			expected:       3,
+		},
+		{
+			name:     "only review comments",
+			comments: []GitHubComment{},
+			reviewComments: []GitHubReviewComment{
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T10:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer2"}, CreatedAt: "2023-01-01T11:00:00Z"},
+			},
+			expected: 2,
+		},
+		{
+			name: "mix of both comment types",
+			comments: []GitHubComment{
+				{User: struct{ Login string `json:"login"` }{Login: "user1"}, CreatedAt: "2023-01-01T10:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "user2"}, CreatedAt: "2023-01-01T11:00:00Z"},
+			},
+			reviewComments: []GitHubReviewComment{
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T12:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer2"}, CreatedAt: "2023-01-01T13:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer3"}, CreatedAt: "2023-01-01T14:00:00Z"},
+			},
+			expected: 5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := countTotalComments(tt.comments, tt.reviewComments)
+			if result != tt.expected {
+				t.Errorf("countTotalComments() = %d, want %d", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGetCommentorUsernames(t *testing.T) {
+	tests := []struct {
+		name       string
+		commentors map[string]bool
+		expected   []string
+	}{
+		{
+			name:       "no commentors",
+			commentors: map[string]bool{},
+			expected:   []string{},
+		},
+		{
+			name: "single commentor",
+			commentors: map[string]bool{
+				"user1": true,
+			},
+			expected: []string{"user1"},
+		},
+		{
+			name: "multiple commentors - should be sorted",
+			commentors: map[string]bool{
+				"user3": true,
+				"user1": true,
+				"user2": true,
+			},
+			expected: []string{"user1", "user2", "user3"},
+		},
+		{
+			name: "commentors with various usernames",
+			commentors: map[string]bool{
+				"z-user":      true,
+				"a-user":      true,
+				"middle-user": true,
+			},
+			expected: []string{"a-user", "middle-user", "z-user"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getCommentorUsernames(tt.commentors)
+			
+			if len(result) != len(tt.expected) {
+				t.Errorf("getCommentorUsernames() returned %d usernames, want %d", len(result), len(tt.expected))
+				return
+			}
+			
+			for i, username := range result {
+				if username != tt.expected[i] {
+					t.Errorf("getCommentorUsernames()[%d] = %s, want %s", i, username, tt.expected[i])
+				}
+			}
+		})
+	}
+}
+
+func TestPRDetailsWithCommentFields(t *testing.T) {
+	// Test that the new comment fields are properly included in JSON output
+	prDetails := &PRDetails{
+		OrganizationName:   "test-org",
+		RepositoryName:     "test-repo",
+		PRNumber:           123,
+		PRTitle:            "Test PR with comments",
+		AuthorUsername:     "author",
+		CommentorUsernames: []string{"reviewer1", "reviewer2", "user1"},
+		State:              "open",
+		NumComments:        7,
+		NumCommentors:      3,
+		NumApprovers:       2,
+		JiraIssue:          "TEST-123",
+		IsBot:              false,
+		GeneratedAt:        "2023-01-01T20:00:00Z",
+	}
+
+	// Marshal to JSON
+	jsonBytes, err := json.Marshal(prDetails)
+	if err != nil {
+		t.Fatalf("Failed to marshal JSON: %v", err)
+	}
+
+	// Unmarshal to check structure
+	var result map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	// Verify num_comments field
+	if numComments, ok := result["num_comments"].(float64); !ok || int(numComments) != 7 {
+		t.Errorf("Expected num_comments to be 7, got %v", result["num_comments"])
+	}
+
+	// Verify commentor_usernames field
+	commentorUsernames, ok := result["commentor_usernames"].([]interface{})
+	if !ok {
+		t.Fatalf("Expected commentor_usernames to be an array, got %T", result["commentor_usernames"])
+	}
+	
+	if len(commentorUsernames) != 3 {
+		t.Errorf("Expected commentor_usernames to have 3 elements, got %d", len(commentorUsernames))
+	}
+	
+	expectedUsernames := []string{"reviewer1", "reviewer2", "user1"}
+	for i, username := range commentorUsernames {
+		if str, ok := username.(string); !ok || str != expectedUsernames[i] {
+			t.Errorf("Expected commentor_usernames[%d] to be %s, got %v", i, expectedUsernames[i], username)
+		}
+	}
+
+	// Verify that existing num_commentors field is still present
+	if numCommentors, ok := result["num_commentors"].(float64); !ok || int(numCommentors) != 3 {
+		t.Errorf("Expected num_commentors to be 3, got %v", result["num_commentors"])
+	}
+}
+
 func stringPtr(s string) *string {
 	return &s
 }
