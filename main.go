@@ -249,59 +249,147 @@ func fetchPR(ctx context.Context, client *github.Client, org, repo string, prNum
 }
 
 func fetchReviews(ctx context.Context, client *github.Client, org, repo string, prNumber int) ([]*github.PullRequestReview, error) {
-	reviews, _, err := client.PullRequests.ListReviews(ctx, org, repo, prNumber, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch reviews: %w", err)
+	var allReviews []*github.PullRequestReview
+	opts := &github.ListOptions{PerPage: 100}
+	
+	for {
+		reviews, resp, err := client.PullRequests.ListReviews(ctx, org, repo, prNumber, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch reviews: %w", err)
+		}
+		allReviews = append(allReviews, reviews...)
+		
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
 	}
-	return reviews, nil
+	
+	return allReviews, nil
 }
 
 func fetchComments(ctx context.Context, client *github.Client, org, repo string, prNumber int) ([]*github.IssueComment, error) {
-	comments, _, err := client.Issues.ListComments(ctx, org, repo, prNumber, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch comments: %w", err)
+	var allComments []*github.IssueComment
+	opts := &github.IssueListCommentsOptions{
+		ListOptions: github.ListOptions{PerPage: 100},
 	}
-	return comments, nil
+	
+	for {
+		comments, resp, err := client.Issues.ListComments(ctx, org, repo, prNumber, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch comments: %w", err)
+		}
+		allComments = append(allComments, comments...)
+		
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+	
+	return allComments, nil
 }
 
 func fetchReviewComments(ctx context.Context, client *github.Client, org, repo string, prNumber int) ([]*github.PullRequestComment, error) {
-	reviewComments, _, err := client.PullRequests.ListComments(ctx, org, repo, prNumber, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch review comments: %w", err)
+	var allReviewComments []*github.PullRequestComment
+	opts := &github.PullRequestListCommentsOptions{
+		ListOptions: github.ListOptions{PerPage: 100},
 	}
-	return reviewComments, nil
+	
+	for {
+		reviewComments, resp, err := client.PullRequests.ListComments(ctx, org, repo, prNumber, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch review comments: %w", err)
+		}
+		allReviewComments = append(allReviewComments, reviewComments...)
+		
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+	
+	return allReviewComments, nil
 }
 
 func fetchTimeline(ctx context.Context, client *github.Client, org, repo string, prNumber int) ([]*github.Timeline, error) {
-	timeline, _, err := client.Issues.ListIssueTimeline(ctx, org, repo, prNumber, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch timeline: %w", err)
+	var allTimeline []*github.Timeline
+	opts := &github.ListOptions{PerPage: 100}
+	
+	for {
+		timeline, resp, err := client.Issues.ListIssueTimeline(ctx, org, repo, prNumber, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch timeline: %w", err)
+		}
+		allTimeline = append(allTimeline, timeline...)
+		
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
 	}
-	return timeline, nil
+	
+	return allTimeline, nil
 }
 
 func fetchPRFiles(ctx context.Context, client *github.Client, org, repo string, prNumber int) ([]*github.CommitFile, error) {
-	files, _, err := client.PullRequests.ListFiles(ctx, org, repo, prNumber, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch PR files: %w", err)
+	var allFiles []*github.CommitFile
+	opts := &github.ListOptions{PerPage: 100}
+	
+	for {
+		files, resp, err := client.PullRequests.ListFiles(ctx, org, repo, prNumber, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch PR files: %w", err)
+		}
+		allFiles = append(allFiles, files...)
+		
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
 	}
-	return files, nil
+	
+	return allFiles, nil
 }
 
 func fetchReleases(ctx context.Context, client *github.Client, org, repo string) ([]*github.RepositoryRelease, error) {
-	releases, _, err := client.Repositories.ListReleases(ctx, org, repo, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch releases: %w", err)
+	var allReleases []*github.RepositoryRelease
+	opts := &github.ListOptions{PerPage: 100}
+	
+	for {
+		releases, resp, err := client.Repositories.ListReleases(ctx, org, repo, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch releases: %w", err)
+		}
+		allReleases = append(allReleases, releases...)
+		
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
 	}
-	return releases, nil
+	
+	return allReleases, nil
 }
 
 func fetchPRCommits(ctx context.Context, client *github.Client, org, repo string, prNumber int) ([]*github.RepositoryCommit, error) {
-	commits, _, err := client.PullRequests.ListCommits(ctx, org, repo, prNumber, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch PR commits: %w", err)
+	var allCommits []*github.RepositoryCommit
+	opts := &github.ListOptions{PerPage: 100}
+	
+	for {
+		commits, resp, err := client.PullRequests.ListCommits(ctx, org, repo, prNumber, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch PR commits: %w", err)
+		}
+		allCommits = append(allCommits, commits...)
+		
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
 	}
-	return commits, nil
+	
+	return allCommits, nil
 }
 
 func getPRState(pr *github.PullRequest) string {

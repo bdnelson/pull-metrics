@@ -373,7 +373,7 @@ The utility handles various error conditions gracefully:
 - **Network Issues**: Reports connection failures
 - **Rate Limiting**: Returns GitHub API rate limit responses
 
-## Rate Limiting
+## Rate Limiting and Pagination
 
 The utility makes multiple GitHub API calls to gather comprehensive PR data:
 - PR details
@@ -385,7 +385,26 @@ The utility makes multiple GitHub API calls to gather comprehensive PR data:
 - Commits
 - Releases (for merged PRs only)
 
-Be aware of GitHub API rate limits (5,000 requests per hour for authenticated requests).
+### Pagination Handling
+
+All GitHub API endpoints that support pagination are handled automatically. The utility:
+- Fetches up to 100 items per page (GitHub's maximum)
+- Automatically follows pagination links to collect all data
+- Ensures complete data collection for large PRs with many:
+  - Reviews
+  - Comments and review comments
+  - Timeline events
+  - Changed files
+  - Commits
+  - Repository releases
+
+### Rate Limiting
+
+Be aware of GitHub API rate limits (5,000 requests per hour for authenticated requests). Large PRs with extensive pagination may consume more API quota. The number of API calls depends on:
+- Base calls: 7-8 API calls per PR (fixed)
+- Pagination calls: Additional calls for every 100 items in paginated responses
+
+For example, a PR with 250 comments would require 3 pagination calls for comments (100 + 100 + 50 items).
 
 ## Examples
 
