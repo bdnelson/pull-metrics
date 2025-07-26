@@ -4,7 +4,8 @@
       "Bash(go mod init:*)",
       "Bash(make:*)",
       "Bash(ls:*)",
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(go build:*)"
     ],
     "deny": []
   }

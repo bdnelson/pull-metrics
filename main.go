@@ -75,6 +75,13 @@ type GitHubComment struct {
 	CreatedAt string `json:"created_at"`
 }
 
+type GitHubReviewComment struct {
+	User struct {
+		Login string `json:"login"`
+	} `json:"user"`
+	CreatedAt string `json:"created_at"`
+}
+
 type GitHubTimelineEvent struct {
 	Event     string `json:"event"`
 	CreatedAt string `json:"created_at"`
@@ -197,6 +204,11 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		return nil, err
 	}
 
+	reviewComments, err := fetchReviewComments(client, token, org, repo, prNumber)
+	if err != nil {
+		return nil, err
+	}
+
 	timeline, err := fetchTimeline(client, token, org, repo, prNumber)
 	if err != nil {
 		return nil, err
@@ -222,8 +234,8 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 
 	state := getPRState(pr)
 	approvers := getApprovers(reviews)
-	commentors := getCommentors(comments, pr.User.Login)
-	timestamps := getTimestamps(pr, reviews, comments, timeline, commits)
+	commentors := getCommentors(comments, reviewComments, pr.User.Login)
+	timestamps := getTimestamps(pr, reviews, comments, reviewComments, timeline, commits)
 	prSize := calculatePRSize(files)
 	releaseName := findReleaseForMergedPR(pr, releases)
 	commitsAfterFirstReview := countCommitsAfterFirstReview(commits, timeline)
@@ -355,6 +367,33 @@ func fetchComments(client *http.Client, token, org, repo string, prNumber int) (
 	}
 
 	return comments, nil
+}
+
+func fetchReviewComments(client *http.Client, token, org, repo string, prNumber int) ([]GitHubReviewComment, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d/comments", org, repo, prNumber)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "token "+token)
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GitHub API returned status %d for review comments", resp.StatusCode)
+	}
+
+	var reviewComments []GitHubReviewComment
+	if err := json.NewDecoder(resp.Body).Decode(&reviewComments); err != nil {
+		return nil, err
+	}
+
+	return reviewComments, nil
 }
 
 func fetchTimeline(client *http.Client, token, org, repo string, prNumber int) ([]GitHubTimelineEvent, error) {
@@ -490,17 +529,27 @@ func getApprovers(reviews []GitHubReview) []string {
 	return result
 }
 
-func getCommentors(comments []GitHubComment, authorUsername string) map[string]bool {
+func getCommentors(comments []GitHubComment, reviewComments []GitHubReviewComment, authorUsername string) map[string]bool {
 	commentors := make(map[string]bool)
+	
+	// Process regular comments
 	for _, comment := range comments {
 		if comment.User.Login != authorUsername {
 			commentors[comment.User.Login] = true
 		}
 	}
+	
+	// Process review comments
+	for _, reviewComment := range reviewComments {
+		if reviewComment.User.Login != authorUsername {
+			commentors[reviewComment.User.Login] = true
+		}
+	}
+	
 	return commentors
 }
 
-func getTimestamps(pr *GitHubPR, reviews []GitHubReview, comments []GitHubComment, timeline []GitHubTimelineEvent, commits []GitHubCommit) *Timestamps {
+func getTimestamps(pr *GitHubPR, reviews []GitHubReview, comments []GitHubComment, reviewComments []GitHubReviewComment, timeline []GitHubTimelineEvent, commits []GitHubCommit) *Timestamps {
 	timestamps := &Timestamps{}
 
 	// First commit timestamp (from commits)
@@ -538,13 +587,21 @@ func getTimestamps(pr *GitHubPR, reviews []GitHubReview, comments []GitHubCommen
 		}
 	}
 
-	// First comment (from comments)
-	if len(comments) > 0 {
-		// Sort comments by creation time to get the first one
-		sort.Slice(comments, func(i, j int) bool {
-			return comments[i].CreatedAt < comments[j].CreatedAt
-		})
-		utcTime := formatToUTC(comments[0].CreatedAt)
+	// First comment (from both regular comments and review comments)
+	var allComments []string
+	
+	// Collect all comment timestamps
+	for _, comment := range comments {
+		allComments = append(allComments, comment.CreatedAt)
+	}
+	for _, reviewComment := range reviewComments {
+		allComments = append(allComments, reviewComment.CreatedAt)
+	}
+	
+	if len(allComments) > 0 {
+		// Sort all comment timestamps to get the first one
+		sort.Strings(allComments)
+		utcTime := formatToUTC(allComments[0])
 		timestamps.FirstComment = &utcTime
 	}
 

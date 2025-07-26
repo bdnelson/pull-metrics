@@ -294,7 +294,7 @@ func TestGetCommentors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := getCommentors(tt.comments, tt.authorUsername)
+			result := getCommentors(tt.comments, []GitHubReviewComment{}, tt.authorUsername)
 			if len(result) != tt.expectedCount {
 				t.Errorf("getCommentors() returned %d commentors, want %d", len(result), tt.expectedCount)
 			}
@@ -503,7 +503,7 @@ func TestGetTimestamps(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := getTimestamps(tt.pr, tt.reviews, tt.comments, tt.timeline, tt.commits)
+			result := getTimestamps(tt.pr, tt.reviews, tt.comments, []GitHubReviewComment{}, tt.timeline, tt.commits)
 			tt.validate(t, result)
 		})
 	}
@@ -1782,6 +1782,191 @@ func TestIsBot(t *testing.T) {
 			result := isBot(tt.username)
 			if result != tt.expected {
 				t.Errorf("isBot(%q) = %v, want %v", tt.username, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGetCommentorsWithReviewComments(t *testing.T) {
+	tests := []struct {
+		name           string
+		comments       []GitHubComment
+		reviewComments []GitHubReviewComment
+		authorUsername string
+		expectedCount  int
+		expectedUsers  []string
+	}{
+		{
+			name:           "no comments at all",
+			comments:       []GitHubComment{},
+			reviewComments: []GitHubReviewComment{},
+			authorUsername: "author",
+			expectedCount:  0,
+			expectedUsers:  []string{},
+		},
+		{
+			name: "only regular comments",
+			comments: []GitHubComment{
+				{User: struct{ Login string `json:"login"` }{Login: "user1"}, CreatedAt: "2023-01-01T10:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "user2"}, CreatedAt: "2023-01-01T11:00:00Z"},
+			},
+			reviewComments: []GitHubReviewComment{},
+			authorUsername: "author",
+			expectedCount:  2,
+			expectedUsers:  []string{"user1", "user2"},
+		},
+		{
+			name:     "only review comments",
+			comments: []GitHubComment{},
+			reviewComments: []GitHubReviewComment{
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T10:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer2"}, CreatedAt: "2023-01-01T11:00:00Z"},
+			},
+			authorUsername: "author",
+			expectedCount:  2,
+			expectedUsers:  []string{"reviewer1", "reviewer2"},
+		},
+		{
+			name: "mix of regular and review comments",
+			comments: []GitHubComment{
+				{User: struct{ Login string `json:"login"` }{Login: "user1"}, CreatedAt: "2023-01-01T10:00:00Z"},
+			},
+			reviewComments: []GitHubReviewComment{
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T11:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer2"}, CreatedAt: "2023-01-01T12:00:00Z"},
+			},
+			authorUsername: "author",
+			expectedCount:  3,
+			expectedUsers:  []string{"user1", "reviewer1", "reviewer2"},
+		},
+		{
+			name: "exclude author from both comment types",
+			comments: []GitHubComment{
+				{User: struct{ Login string `json:"login"` }{Login: "author"}, CreatedAt: "2023-01-01T10:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "user1"}, CreatedAt: "2023-01-01T11:00:00Z"},
+			},
+			reviewComments: []GitHubReviewComment{
+				{User: struct{ Login string `json:"login"` }{Login: "author"}, CreatedAt: "2023-01-01T12:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T13:00:00Z"},
+			},
+			authorUsername: "author",
+			expectedCount:  2,
+			expectedUsers:  []string{"user1", "reviewer1"},
+		},
+		{
+			name: "duplicate users across comment types",
+			comments: []GitHubComment{
+				{User: struct{ Login string `json:"login"` }{Login: "user1"}, CreatedAt: "2023-01-01T10:00:00Z"},
+			},
+			reviewComments: []GitHubReviewComment{
+				{User: struct{ Login string `json:"login"` }{Login: "user1"}, CreatedAt: "2023-01-01T11:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T12:00:00Z"},
+			},
+			authorUsername: "author",
+			expectedCount:  2,
+			expectedUsers:  []string{"user1", "reviewer1"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getCommentors(tt.comments, tt.reviewComments, tt.authorUsername)
+			
+			if len(result) != tt.expectedCount {
+				t.Errorf("getCommentors() returned %d commentors, want %d", len(result), tt.expectedCount)
+			}
+			
+			for _, expectedUser := range tt.expectedUsers {
+				if !result[expectedUser] {
+					t.Errorf("Expected user %s not found in commentors", expectedUser)
+				}
+			}
+		})
+	}
+}
+
+func TestGetTimestampsWithReviewComments(t *testing.T) {
+	tests := []struct {
+		name           string
+		comments       []GitHubComment
+		reviewComments []GitHubReviewComment
+		expectedFirstComment *string
+	}{
+		{
+			name:           "no comments at all",
+			comments:       []GitHubComment{},
+			reviewComments: []GitHubReviewComment{},
+			expectedFirstComment: nil,
+		},
+		{
+			name: "only regular comment",
+			comments: []GitHubComment{
+				{User: struct{ Login string `json:"login"` }{Login: "user1"}, CreatedAt: "2023-01-01T12:00:00Z"},
+			},
+			reviewComments: []GitHubReviewComment{},
+			expectedFirstComment: stringPtr("2023-01-01T12:00:00Z"),
+		},
+		{
+			name:     "only review comment",
+			comments: []GitHubComment{},
+			reviewComments: []GitHubReviewComment{
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T11:00:00Z"},
+			},
+			expectedFirstComment: stringPtr("2023-01-01T11:00:00Z"),
+		},
+		{
+			name: "review comment is earlier than regular comment",
+			comments: []GitHubComment{
+				{User: struct{ Login string `json:"login"` }{Login: "user1"}, CreatedAt: "2023-01-01T12:00:00Z"},
+			},
+			reviewComments: []GitHubReviewComment{
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T10:00:00Z"},
+			},
+			expectedFirstComment: stringPtr("2023-01-01T10:00:00Z"),
+		},
+		{
+			name: "regular comment is earlier than review comment",
+			comments: []GitHubComment{
+				{User: struct{ Login string `json:"login"` }{Login: "user1"}, CreatedAt: "2023-01-01T09:00:00Z"},
+			},
+			reviewComments: []GitHubReviewComment{
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T11:00:00Z"},
+			},
+			expectedFirstComment: stringPtr("2023-01-01T09:00:00Z"),
+		},
+		{
+			name: "multiple comments of both types",
+			comments: []GitHubComment{
+				{User: struct{ Login string `json:"login"` }{Login: "user1"}, CreatedAt: "2023-01-01T12:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "user2"}, CreatedAt: "2023-01-01T14:00:00Z"},
+			},
+			reviewComments: []GitHubReviewComment{
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer1"}, CreatedAt: "2023-01-01T10:00:00Z"},
+				{User: struct{ Login string `json:"login"` }{Login: "reviewer2"}, CreatedAt: "2023-01-01T13:00:00Z"},
+			},
+			expectedFirstComment: stringPtr("2023-01-01T10:00:00Z"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create minimal PR data for the test
+			pr := &GitHubPR{
+				CreatedAt: "2023-01-01T08:00:00Z",
+			}
+			
+			result := getTimestamps(pr, []GitHubReview{}, tt.comments, tt.reviewComments, []GitHubTimelineEvent{}, []GitHubCommit{})
+			
+			if tt.expectedFirstComment == nil {
+				if result.FirstComment != nil {
+					t.Errorf("Expected FirstComment to be nil, but got %v", *result.FirstComment)
+				}
+			} else {
+				if result.FirstComment == nil {
+					t.Errorf("Expected FirstComment to be %v, but got nil", *tt.expectedFirstComment)
+				} else if *result.FirstComment != *tt.expectedFirstComment {
+					t.Errorf("Expected FirstComment to be %v, but got %v", *tt.expectedFirstComment, *result.FirstComment)
+				}
 			}
 		})
 	}

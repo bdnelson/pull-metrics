@@ -146,7 +146,7 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
 | `author_username` | string | Username of the PR author |
 | `approver_usernames` | array | List of usernames who approved the PR |
 | `state` | string | PR state: "draft", "open", "merged", or "closed" |
-| `num_commentors` | integer | Number of unique commentors (excluding author) |
+| `num_commentors` | integer | Number of unique commentors from both conversation comments and review comments (excluding author) |
 | `num_approvers` | integer | Number of users who approved the PR |
 | `num_requested_reviewers` | integer | Number of requested reviewers |
 | `change_requests_count` | integer | Number of reviews that requested changes |
@@ -169,7 +169,7 @@ The `timestamps` object contains all timestamp information related to the PR lif
 | `first_commit` | string | UTC timestamp of the first commit in the PR branch (optional) |
 | `created_at` | string | UTC timestamp when the PR was created (optional) |
 | `first_review_request` | string | UTC timestamp of the first review request (optional) |
-| `first_comment` | string | UTC timestamp of the first comment (optional) |
+| `first_comment` | string | UTC timestamp of the first comment from either conversation comments or review comments (optional) |
 | `first_approval` | string | UTC timestamp of the first approval (optional) |
 | `second_approval` | string | UTC timestamp of the second approval (optional) |
 | `merged_at` | string | UTC timestamp when the PR was merged (optional) |
@@ -182,14 +182,14 @@ The `metrics` object contains calculated performance indicators for the PR revie
 | Field | Type | Description |
 |-------|------|-------------|
 | `time_to_first_review_request_hours` | float | Hours from PR creation to first review request (optional) |
-| `time_to_first_review_hours` | float | Hours from first review request to first comment or first approval, whichever comes first (optional) |
+| `time_to_first_review_hours` | float | Hours from first review request to first comment (conversation or review comment) or first approval, whichever comes first (optional) |
 | `review_cycle_time_hours` | float | Hours from first review request to PR resolution (merge/close) (optional) |
 | `blocking_non_blocking_ratio` | float | Ratio of blocking (CHANGES_REQUESTED) to non-blocking (APPROVED/COMMENTED) reviews (optional) |
 | `reviewer_participation_ratio` | float | Ratio of actual reviewers to requested reviewers (optional) |
 
 **Metrics Calculation Details:**
 - **Time to First Review Request**: Only calculated if first review request occurs after PR creation
-- **Time to First Review**: Only calculated if first review activity (comment or approval) occurs after first review request
+- **Time to First Review**: Only calculated if first review activity (conversation comment, review comment, or approval) occurs after first review request
 - **Review Cycle Time**: Uses merge time if available, otherwise close time
 - **Blocking Ratio**: Only calculated if there are non-blocking reviews (avoids division by zero)
 - **Participation Ratio**: Only calculated if reviewers were requested
@@ -278,14 +278,15 @@ pull-metrics/
 The utility includes comprehensive unit tests covering:
 - PR state determination
 - Approver identification and counting
-- Commentor counting with author exclusion
+- Commentor counting with author exclusion (including both conversation and review comments)
 - UTC timestamp formatting
-- Timestamp extraction from PR events
+- Timestamp extraction from PR events (including review comments for first comment detection)
 - PR size calculation
 - Release identification for merged PRs
 - Commit counting after review requests
 - Jira issue extraction and identification
 - PR performance metrics calculations
+- Review comments integration and processing
 
 ## Error Handling
 
@@ -303,7 +304,8 @@ The utility handles various error conditions gracefully:
 The utility makes multiple GitHub API calls to gather comprehensive PR data:
 - PR details
 - Review information
-- Comments
+- Comments (conversation comments)
+- Review comments (inline code comments)
 - Timeline events
 - File changes
 - Commits
