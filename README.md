@@ -42,6 +42,8 @@ go build -buildvcs=false -o pull-metrics .
 ### Dependencies
 
 The utility uses Go standard library packages with minimal external dependencies:
+- `github.com/google/go-github/v66` - Official Go client library for GitHub API v3
+- `golang.org/x/oauth2` - Official Go OAuth2 library for GitHub API authentication
 - `github.com/joho/godotenv` - For loading environment variables from .env files
 - `github.com/ardanlabs/conf/v3` - For configuration management with environment variables, command line arguments, and help/usage messages
 

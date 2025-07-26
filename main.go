@@ -1,10 +1,10 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"regexp"
 	"sort"
@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/ardanlabs/conf/v3"
+	"github.com/google/go-github/v66/github"
 	"github.com/joho/godotenv"
+	"golang.org/x/oauth2"
 )
 
 type PRDetails struct {
@@ -43,82 +45,6 @@ type PRDetails struct {
 	GeneratedAt       string   `json:"generated_at"`
 }
 
-type GitHubPR struct {
-	Number  int     `json:"number"`
-	Title   string  `json:"title"`
-	Body    *string `json:"body"`
-	HTMLURL string  `json:"html_url"`
-	NodeID  string  `json:"node_id"`
-	User    struct {
-		Login string `json:"login"`
-	} `json:"user"`
-	Head struct {
-		Ref string `json:"ref"`
-	} `json:"head"`
-	State       string `json:"state"`
-	Draft       bool   `json:"draft"`
-	Merged      bool   `json:"merged"`
-	CreatedAt   string `json:"created_at"`
-	MergedAt    *string `json:"merged_at"`
-	ClosedAt    *string `json:"closed_at"`
-	RequestedReviewers []struct {
-		Login string `json:"login"`
-	} `json:"requested_reviewers"`
-}
-
-type GitHubReview struct {
-	User struct {
-		Login string `json:"login"`
-	} `json:"user"`
-	State       string `json:"state"`
-	SubmittedAt string `json:"submitted_at"`
-}
-
-type GitHubComment struct {
-	User struct {
-		Login string `json:"login"`
-	} `json:"user"`
-	CreatedAt string `json:"created_at"`
-}
-
-type GitHubReviewComment struct {
-	User struct {
-		Login string `json:"login"`
-	} `json:"user"`
-	CreatedAt string `json:"created_at"`
-}
-
-type GitHubTimelineEvent struct {
-	Event     string `json:"event"`
-	CreatedAt string `json:"created_at"`
-	Actor     struct {
-		Login string `json:"login"`
-	} `json:"actor"`
-}
-
-type GitHubPRFile struct {
-	Filename  string `json:"filename"`
-	Status    string `json:"status"`
-	Additions int    `json:"additions"`
-	Deletions int    `json:"deletions"`
-	Changes   int    `json:"changes"`
-}
-
-type GitHubCommit struct {
-	SHA    string `json:"sha"`
-	Commit struct {
-		Author struct {
-			Date string `json:"date"`
-		} `json:"author"`
-	} `json:"commit"`
-}
-
-type GitHubRelease struct {
-	Name        string `json:"name"`
-	TagName     string `json:"tag_name"`
-	CreatedAt   string `json:"created_at"`
-	PublishedAt string `json:"published_at"`
-}
 
 type PRSize struct {
 	LinesChanged int
@@ -156,9 +82,9 @@ type PRMetrics struct {
 }
 
 type Config struct {
-	Organization string `conf:"pos:0,help:GitHub organization or username"`
-	Repository   string `conf:"pos:1,help:Repository name"`
-	PRNumber     int    `conf:"pos:2,help:Pull Request number"`
+	Organization string `conf:"pos:0,env:ORGANIZATION,help:GitHub organization or username"`
+	Repository   string `conf:"pos:1,env:REPOSITORY,help:Repository name"`
+	PRNumber     int    `conf:"pos:2,env:PR_NUMBER,help:Pull Request number"`
 	GitHubToken  string `conf:"env:GITHUB_TOKEN,help:GitHub Personal Access Token"`
 }
 
@@ -178,14 +104,21 @@ func main() {
 		os.Exit(1)
 	}
 
+
 	if cfg.GitHubToken == "" {
 		fmt.Fprintf(os.Stderr, "GITHUB_TOKEN environment variable is required\n")
 		os.Exit(1)
 	}
 
-	client := &http.Client{}
+	// Create GitHub client with OAuth2 token
+	ctx := context.Background()
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: cfg.GitHubToken},
+	)
+	tc := oauth2.NewClient(ctx, ts)
+	client := github.NewClient(tc)
 
-	prDetails, err := getPRDetails(client, cfg.GitHubToken, cfg.Organization, cfg.Repository, cfg.PRNumber)
+	prDetails, err := getPRDetails(ctx, client, cfg.Organization, cfg.Repository, cfg.PRNumber)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error fetching PR details: %v\n", err)
 		os.Exit(1)
@@ -200,45 +133,45 @@ func main() {
 	fmt.Println(string(output))
 }
 
-func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*PRDetails, error) {
-	pr, err := fetchPR(client, token, org, repo, prNumber)
+func getPRDetails(ctx context.Context, client *github.Client, org, repo string, prNumber int) (*PRDetails, error) {
+	pr, err := fetchPR(ctx, client, org, repo, prNumber)
 	if err != nil {
 		return nil, err
 	}
 
-	reviews, err := fetchReviews(client, token, org, repo, prNumber)
+	reviews, err := fetchReviews(ctx, client, org, repo, prNumber)
 	if err != nil {
 		return nil, err
 	}
 
-	comments, err := fetchComments(client, token, org, repo, prNumber)
+	comments, err := fetchComments(ctx, client, org, repo, prNumber)
 	if err != nil {
 		return nil, err
 	}
 
-	reviewComments, err := fetchReviewComments(client, token, org, repo, prNumber)
+	reviewComments, err := fetchReviewComments(ctx, client, org, repo, prNumber)
 	if err != nil {
 		return nil, err
 	}
 
-	timeline, err := fetchTimeline(client, token, org, repo, prNumber)
+	timeline, err := fetchTimeline(ctx, client, org, repo, prNumber)
 	if err != nil {
 		return nil, err
 	}
 
-	files, err := fetchPRFiles(client, token, org, repo, prNumber)
+	files, err := fetchPRFiles(ctx, client, org, repo, prNumber)
 	if err != nil {
 		return nil, err
 	}
 
-	commits, err := fetchPRCommits(client, token, org, repo, prNumber)
+	commits, err := fetchPRCommits(ctx, client, org, repo, prNumber)
 	if err != nil {
 		return nil, err
 	}
 
-	var releases []GitHubRelease
-	if pr.Merged {
-		releases, err = fetchReleases(client, token, org, repo)
+	var releases []*github.RepositoryRelease
+	if *pr.Merged {
+		releases, err = fetchReleases(ctx, client, org, repo)
 		if err != nil {
 			return nil, err
 		}
@@ -246,7 +179,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 
 	state := getPRState(pr)
 	approvers := getApprovers(reviews)
-	commenters := getCommenters(comments, reviewComments, pr.User.Login)
+	commenters := getCommenters(comments, reviewComments, *pr.User.Login)
 	commenterUsernames := getCommenterUsernames(commenters)
 	numComments := countTotalComments(comments, reviewComments)
 	numRequestedReviewers := countAllRequestedReviewers(pr, reviews)
@@ -263,10 +196,10 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		OrganizationName:     org,
 		RepositoryName:        repo,
 		PRNumber:             prNumber,
-		PRTitle:              pr.Title,
-		PRWebURL:             pr.HTMLURL,
-		PRNodeID:             pr.NodeID,
-		AuthorUsername:       pr.User.Login,
+		PRTitle:              *pr.Title,
+		PRWebURL:             *pr.HTMLURL,
+		PRNodeID:             *pr.NodeID,
+		AuthorUsername:       *pr.User.Login,
 		ApproverUsernames:    approvers,
 		CommenterUsernames:   commenterUsernames,
 		State:                state,
@@ -280,7 +213,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		FilesChanged:         prSize.FilesChanged,
 		CommitsAfterFirstReview: commitsAfterFirstReview,
 		JiraIssue:            jiraIssue,
-		IsBot:                isBot(pr.User.Login),
+		IsBot:                isBot(*pr.User.Login),
 		Metrics:              metrics,
 		GeneratedAt:          time.Now().UTC().Format(time.RFC3339),
 	}
@@ -307,237 +240,85 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 	return result, nil
 }
 
-func fetchPR(client *http.Client, token, org, repo string, prNumber int) (*GitHubPR, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d", org, repo, prNumber)
-	req, err := http.NewRequest("GET", url, nil)
+func fetchPR(ctx context.Context, client *github.Client, org, repo string, prNumber int) (*github.PullRequest, error) {
+	pr, _, err := client.PullRequests.Get(ctx, org, repo, prNumber)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch PR: %w", err)
 	}
-	req.Header.Set("Authorization", "token "+token)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
-	}
-
-	var pr GitHubPR
-	if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
-		return nil, err
-	}
-
-	return &pr, nil
+	return pr, nil
 }
 
-func fetchReviews(client *http.Client, token, org, repo string, prNumber int) ([]GitHubReview, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d/reviews", org, repo, prNumber)
-	req, err := http.NewRequest("GET", url, nil)
+func fetchReviews(ctx context.Context, client *github.Client, org, repo string, prNumber int) ([]*github.PullRequestReview, error) {
+	reviews, _, err := client.PullRequests.ListReviews(ctx, org, repo, prNumber, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch reviews: %w", err)
 	}
-	req.Header.Set("Authorization", "token "+token)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned status %d for reviews", resp.StatusCode)
-	}
-
-	var reviews []GitHubReview
-	if err := json.NewDecoder(resp.Body).Decode(&reviews); err != nil {
-		return nil, err
-	}
-
 	return reviews, nil
 }
 
-func fetchComments(client *http.Client, token, org, repo string, prNumber int) ([]GitHubComment, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues/%d/comments", org, repo, prNumber)
-	req, err := http.NewRequest("GET", url, nil)
+func fetchComments(ctx context.Context, client *github.Client, org, repo string, prNumber int) ([]*github.IssueComment, error) {
+	comments, _, err := client.Issues.ListComments(ctx, org, repo, prNumber, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch comments: %w", err)
 	}
-	req.Header.Set("Authorization", "token "+token)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned status %d for comments", resp.StatusCode)
-	}
-
-	var comments []GitHubComment
-	if err := json.NewDecoder(resp.Body).Decode(&comments); err != nil {
-		return nil, err
-	}
-
 	return comments, nil
 }
 
-func fetchReviewComments(client *http.Client, token, org, repo string, prNumber int) ([]GitHubReviewComment, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d/comments", org, repo, prNumber)
-	req, err := http.NewRequest("GET", url, nil)
+func fetchReviewComments(ctx context.Context, client *github.Client, org, repo string, prNumber int) ([]*github.PullRequestComment, error) {
+	reviewComments, _, err := client.PullRequests.ListComments(ctx, org, repo, prNumber, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch review comments: %w", err)
 	}
-	req.Header.Set("Authorization", "token "+token)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned status %d for review comments", resp.StatusCode)
-	}
-
-	var reviewComments []GitHubReviewComment
-	if err := json.NewDecoder(resp.Body).Decode(&reviewComments); err != nil {
-		return nil, err
-	}
-
 	return reviewComments, nil
 }
 
-func fetchTimeline(client *http.Client, token, org, repo string, prNumber int) ([]GitHubTimelineEvent, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues/%d/timeline", org, repo, prNumber)
-	req, err := http.NewRequest("GET", url, nil)
+func fetchTimeline(ctx context.Context, client *github.Client, org, repo string, prNumber int) ([]*github.Timeline, error) {
+	timeline, _, err := client.Issues.ListIssueTimeline(ctx, org, repo, prNumber, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch timeline: %w", err)
 	}
-	req.Header.Set("Authorization", "token "+token)
-	req.Header.Set("Accept", "application/vnd.github.mockingbird-preview")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned status %d for timeline", resp.StatusCode)
-	}
-
-	var timeline []GitHubTimelineEvent
-	if err := json.NewDecoder(resp.Body).Decode(&timeline); err != nil {
-		return nil, err
-	}
-
 	return timeline, nil
 }
 
-func fetchPRFiles(client *http.Client, token, org, repo string, prNumber int) ([]GitHubPRFile, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d/files", org, repo, prNumber)
-	req, err := http.NewRequest("GET", url, nil)
+func fetchPRFiles(ctx context.Context, client *github.Client, org, repo string, prNumber int) ([]*github.CommitFile, error) {
+	files, _, err := client.PullRequests.ListFiles(ctx, org, repo, prNumber, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch PR files: %w", err)
 	}
-	req.Header.Set("Authorization", "token "+token)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned status %d for PR files", resp.StatusCode)
-	}
-
-	var files []GitHubPRFile
-	if err := json.NewDecoder(resp.Body).Decode(&files); err != nil {
-		return nil, err
-	}
-
 	return files, nil
 }
 
-func fetchReleases(client *http.Client, token, org, repo string) ([]GitHubRelease, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases", org, repo)
-	req, err := http.NewRequest("GET", url, nil)
+func fetchReleases(ctx context.Context, client *github.Client, org, repo string) ([]*github.RepositoryRelease, error) {
+	releases, _, err := client.Repositories.ListReleases(ctx, org, repo, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch releases: %w", err)
 	}
-	req.Header.Set("Authorization", "token "+token)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned status %d for releases", resp.StatusCode)
-	}
-
-	var releases []GitHubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
-		return nil, err
-	}
-
 	return releases, nil
 }
 
-func fetchPRCommits(client *http.Client, token, org, repo string, prNumber int) ([]GitHubCommit, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d/commits", org, repo, prNumber)
-	req, err := http.NewRequest("GET", url, nil)
+func fetchPRCommits(ctx context.Context, client *github.Client, org, repo string, prNumber int) ([]*github.RepositoryCommit, error) {
+	commits, _, err := client.PullRequests.ListCommits(ctx, org, repo, prNumber, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch PR commits: %w", err)
 	}
-	req.Header.Set("Authorization", "token "+token)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned status %d for PR commits", resp.StatusCode)
-	}
-
-	var commits []GitHubCommit
-	if err := json.NewDecoder(resp.Body).Decode(&commits); err != nil {
-		return nil, err
-	}
-
 	return commits, nil
 }
 
-func getPRState(pr *GitHubPR) string {
-	if pr.Draft {
+func getPRState(pr *github.PullRequest) string {
+	if pr.GetDraft() {
 		return "draft"
 	}
-	if pr.Merged {
+	if pr.GetMerged() {
 		return "merged"
 	}
-	return pr.State
+	return pr.GetState()
 }
 
-func getApprovers(reviews []GitHubReview) []string {
+func getApprovers(reviews []*github.PullRequestReview) []string {
 	approvers := make(map[string]bool)
 	for _, review := range reviews {
-		if review.State == "APPROVED" {
-			approvers[review.User.Login] = true
+		if review.GetState() == "APPROVED" {
+			approvers[review.GetUser().GetLogin()] = true
 		}
 	}
 
@@ -548,27 +329,27 @@ func getApprovers(reviews []GitHubReview) []string {
 	return result
 }
 
-func getCommenters(comments []GitHubComment, reviewComments []GitHubReviewComment, authorUsername string) map[string]bool {
+func getCommenters(comments []*github.IssueComment, reviewComments []*github.PullRequestComment, authorUsername string) map[string]bool {
 	commenters := make(map[string]bool)
 	
 	// Process regular comments
 	for _, comment := range comments {
-		if comment.User.Login != authorUsername {
-			commenters[comment.User.Login] = true
+		if comment.GetUser().GetLogin() != authorUsername {
+			commenters[comment.GetUser().GetLogin()] = true
 		}
 	}
 	
 	// Process review comments
 	for _, reviewComment := range reviewComments {
-		if reviewComment.User.Login != authorUsername {
-			commenters[reviewComment.User.Login] = true
+		if reviewComment.GetUser().GetLogin() != authorUsername {
+			commenters[reviewComment.GetUser().GetLogin()] = true
 		}
 	}
 	
 	return commenters
 }
 
-func countTotalComments(comments []GitHubComment, reviewComments []GitHubReviewComment) int {
+func countTotalComments(comments []*github.IssueComment, reviewComments []*github.PullRequestComment) int {
 	return len(comments) + len(reviewComments)
 }
 
@@ -581,98 +362,100 @@ func getCommenterUsernames(commenters map[string]bool) []string {
 	return usernames
 }
 
-func countAllRequestedReviewers(pr *GitHubPR, reviews []GitHubReview) int {
+func countAllRequestedReviewers(pr *github.PullRequest, reviews []*github.PullRequestReview) int {
 	// Count all reviewers who were requested to review (both those who reviewed and those who haven't)
 	requestedReviewers := make(map[string]bool)
 	
 	// Add users who have submitted reviews (they must have been requested to review)
 	for _, review := range reviews {
-		requestedReviewers[review.User.Login] = true
+		requestedReviewers[review.GetUser().GetLogin()] = true
 	}
 	
 	// Add current requested reviewers (those who haven't reviewed yet)
 	for _, reviewer := range pr.RequestedReviewers {
-		requestedReviewers[reviewer.Login] = true
+		requestedReviewers[reviewer.GetLogin()] = true
 	}
 	
 	return len(requestedReviewers)
 }
 
-func getTimestamps(pr *GitHubPR, reviews []GitHubReview, comments []GitHubComment, reviewComments []GitHubReviewComment, timeline []GitHubTimelineEvent, commits []GitHubCommit) *Timestamps {
+func getTimestamps(pr *github.PullRequest, reviews []*github.PullRequestReview, comments []*github.IssueComment, reviewComments []*github.PullRequestComment, timeline []*github.Timeline, commits []*github.RepositoryCommit) *Timestamps {
 	timestamps := &Timestamps{}
 
 	// First commit timestamp (from commits)
 	if len(commits) > 0 {
 		// Sort commits by date to get the first one
 		sort.Slice(commits, func(i, j int) bool {
-			return commits[i].Commit.Author.Date < commits[j].Commit.Author.Date
+			return commits[i].GetCommit().GetAuthor().GetDate().Before(commits[j].GetCommit().GetAuthor().GetDate().Time)
 		})
-		utcTime := formatToUTC(commits[0].Commit.Author.Date)
+		utcTime := formatToUTC(commits[0].GetCommit().GetAuthor().GetDate().Format(time.RFC3339))
 		timestamps.FirstCommit = &utcTime
 	}
 
 	// Created timestamp (from PR)
-	if pr.CreatedAt != "" {
-		utcTime := formatToUTC(pr.CreatedAt)
+	if !pr.GetCreatedAt().IsZero() {
+		utcTime := formatToUTC(pr.GetCreatedAt().Format(time.RFC3339))
 		timestamps.CreatedAt = &utcTime
 	}
 
 	// Merged and closed timestamps (from PR)
-	if pr.MergedAt != nil && *pr.MergedAt != "" {
-		utcTime := formatToUTC(*pr.MergedAt)
+	if pr.MergedAt != nil && !pr.GetMergedAt().IsZero() {
+		utcTime := formatToUTC(pr.GetMergedAt().Format(time.RFC3339))
 		timestamps.MergedAt = &utcTime
 	}
-	if pr.ClosedAt != nil && *pr.ClosedAt != "" {
-		utcTime := formatToUTC(*pr.ClosedAt)
+	if pr.ClosedAt != nil && !pr.GetClosedAt().IsZero() {
+		utcTime := formatToUTC(pr.GetClosedAt().Format(time.RFC3339))
 		timestamps.ClosedAt = &utcTime
 	}
 
 	// First review request (from timeline)
 	for _, event := range timeline {
-		if event.Event == "review_requested" && timestamps.FirstReviewRequest == nil {
-			utcTime := formatToUTC(event.CreatedAt)
+		if event.GetEvent() == "review_requested" && timestamps.FirstReviewRequest == nil {
+			utcTime := formatToUTC(event.GetCreatedAt().Format(time.RFC3339))
 			timestamps.FirstReviewRequest = &utcTime
 			break
 		}
 	}
 
 	// First comment (from both regular comments and review comments)
-	var allComments []string
+	var allComments []time.Time
 	
 	// Collect all comment timestamps
 	for _, comment := range comments {
-		allComments = append(allComments, comment.CreatedAt)
+		allComments = append(allComments, comment.GetCreatedAt().Time)
 	}
 	for _, reviewComment := range reviewComments {
-		allComments = append(allComments, reviewComment.CreatedAt)
+		allComments = append(allComments, reviewComment.GetCreatedAt().Time)
 	}
 	
 	if len(allComments) > 0 {
 		// Sort all comment timestamps to get the first one
-		sort.Strings(allComments)
-		utcTime := formatToUTC(allComments[0])
+		sort.Slice(allComments, func(i, j int) bool {
+			return allComments[i].Before(allComments[j])
+		})
+		utcTime := formatToUTC(allComments[0].Format(time.RFC3339))
 		timestamps.FirstComment = &utcTime
 	}
 
 	// First and second approvals (from reviews)
-	var approvals []GitHubReview
+	var approvals []*github.PullRequestReview
 	for _, review := range reviews {
-		if review.State == "APPROVED" {
+		if review.GetState() == "APPROVED" {
 			approvals = append(approvals, review)
 		}
 	}
 	
 	// Sort approvals by submission time
 	sort.Slice(approvals, func(i, j int) bool {
-		return approvals[i].SubmittedAt < approvals[j].SubmittedAt
+		return approvals[i].GetSubmittedAt().Before(approvals[j].GetSubmittedAt().Time)
 	})
 
 	if len(approvals) > 0 {
-		utcTime := formatToUTC(approvals[0].SubmittedAt)
+		utcTime := formatToUTC(approvals[0].GetSubmittedAt().Format(time.RFC3339))
 		timestamps.FirstApproval = &utcTime
 	}
 	if len(approvals) > 1 {
-		utcTime := formatToUTC(approvals[1].SubmittedAt)
+		utcTime := formatToUTC(approvals[1].GetSubmittedAt().Format(time.RFC3339))
 		timestamps.SecondApproval = &utcTime
 	}
 
@@ -687,7 +470,7 @@ func formatToUTC(timestamp string) string {
 	return t.UTC().Format(time.RFC3339)
 }
 
-func calculatePRSize(files []GitHubPRFile) *PRSize {
+func calculatePRSize(files []*github.CommitFile) *PRSize {
 	size := &PRSize{
 		LinesChanged: 0,
 		FilesChanged: len(files),
@@ -695,34 +478,28 @@ func calculatePRSize(files []GitHubPRFile) *PRSize {
 
 	for _, file := range files {
 		// Count total lines changed (additions + deletions)
-		size.LinesChanged += file.Additions + file.Deletions
+		size.LinesChanged += file.GetAdditions() + file.GetDeletions()
 	}
 
 	return size
 }
 
-func findReleaseForMergedPR(pr *GitHubPR, releases []GitHubRelease) *string {
+func findReleaseForMergedPR(pr *github.PullRequest, releases []*github.RepositoryRelease) *string {
 	// Only check for releases if the PR was merged
-	if !pr.Merged || pr.MergedAt == nil {
+	if !pr.GetMerged() || pr.MergedAt == nil {
 		return nil
 	}
 
-	mergedTime, err := time.Parse(time.RFC3339, *pr.MergedAt)
-	if err != nil {
-		return nil
-	}
+	mergedTime := pr.GetMergedAt().Time
 
 	// Find releases published after the PR was merged
-	var validReleases []GitHubRelease
+	var validReleases []*github.RepositoryRelease
 	for _, release := range releases {
-		if release.PublishedAt == "" {
+		if release.PublishedAt == nil || release.GetPublishedAt().IsZero() {
 			continue
 		}
 		
-		publishedTime, err := time.Parse(time.RFC3339, release.PublishedAt)
-		if err != nil {
-			continue
-		}
+		publishedTime := release.GetPublishedAt().Time
 
 		// If the release was published after the PR was merged, 
 		// this PR is likely included in this release
@@ -737,32 +514,26 @@ func findReleaseForMergedPR(pr *GitHubPR, releases []GitHubRelease) *string {
 
 	// Sort valid releases by published date (oldest first) to get the first release after merge
 	sort.Slice(validReleases, func(i, j int) bool {
-		timeI, errI := time.Parse(time.RFC3339, validReleases[i].PublishedAt)
-		timeJ, errJ := time.Parse(time.RFC3339, validReleases[j].PublishedAt)
-		if errI != nil || errJ != nil {
-			return false
-		}
-		return timeI.Before(timeJ)
+		return validReleases[i].GetPublishedAt().Before(validReleases[j].GetPublishedAt().Time)
 	})
 
 	// Return the first (earliest) release after merge
 	release := validReleases[0]
-	releaseName := release.Name
+	releaseName := release.GetName()
 	if releaseName == "" {
-		releaseName = release.TagName
+		releaseName = release.GetTagName()
 	}
 	return &releaseName
 }
 
-func countCommitsAfterFirstReview(commits []GitHubCommit, timeline []GitHubTimelineEvent) int {
+func countCommitsAfterFirstReview(commits []*github.RepositoryCommit, timeline []*github.Timeline) int {
 	// Find the first review request timestamp
 	var firstReviewRequestTime *time.Time
 	for _, event := range timeline {
-		if event.Event == "review_requested" {
-			if t, err := time.Parse(time.RFC3339, event.CreatedAt); err == nil {
-				firstReviewRequestTime = &t
-				break
-			}
+		if event.GetEvent() == "review_requested" {
+			t := event.GetCreatedAt().Time
+			firstReviewRequestTime = &t
+			break
 		}
 	}
 
@@ -774,32 +545,31 @@ func countCommitsAfterFirstReview(commits []GitHubCommit, timeline []GitHubTimel
 	// Count commits made after the first review request
 	count := 0
 	for _, commit := range commits {
-		if commitTime, err := time.Parse(time.RFC3339, commit.Commit.Author.Date); err == nil {
-			if commitTime.After(*firstReviewRequestTime) {
-				count++
-			}
+		commitTime := commit.GetCommit().GetAuthor().GetDate().Time
+		if commitTime.After(*firstReviewRequestTime) {
+			count++
 		}
 	}
 
 	return count
 }
 
-func countChangeRequests(reviews []GitHubReview) int {
+func countChangeRequests(reviews []*github.PullRequestReview) int {
 	count := 0
 	for _, review := range reviews {
-		if review.State == "CHANGES_REQUESTED" {
+		if review.GetState() == "CHANGES_REQUESTED" {
 			count++
 		}
 	}
 	return count
 }
 
-func countChangeRequestComments(comments []GitHubComment, reviewComments []GitHubReviewComment, reviews []GitHubReview) int {
+func countChangeRequestComments(comments []*github.IssueComment, reviewComments []*github.PullRequestComment, reviews []*github.PullRequestReview) int {
 	// Create a set of user logins who submitted change requests
 	changeRequesters := make(map[string]bool)
 	for _, review := range reviews {
-		if review.State == "CHANGES_REQUESTED" {
-			changeRequesters[review.User.Login] = true
+		if review.GetState() == "CHANGES_REQUESTED" {
+			changeRequesters[review.GetUser().GetLogin()] = true
 		}
 	}
 	
@@ -807,14 +577,14 @@ func countChangeRequestComments(comments []GitHubComment, reviewComments []GitHu
 	
 	// Count regular comments from users who submitted change requests
 	for _, comment := range comments {
-		if changeRequesters[comment.User.Login] {
+		if changeRequesters[comment.GetUser().GetLogin()] {
 			count++
 		}
 	}
 	
 	// Count review comments from users who submitted change requests
 	for _, reviewComment := range reviewComments {
-		if changeRequesters[reviewComment.User.Login] {
+		if changeRequesters[reviewComment.GetUser().GetLogin()] {
 			count++
 		}
 	}
@@ -839,31 +609,31 @@ func findValidJiraIssue(pattern *regexp.Regexp, text string) string {
 	return ""
 }
 
-func extractJiraIssue(pr *GitHubPR) string {
+func extractJiraIssue(pr *github.PullRequest) string {
 	// Jira issue pattern: PROJECT-123, ABC-1234, etc.
 	// Matches project key (2+ uppercase letters or alphanumeric) followed by hyphen and number
 	// Excludes CVE- identifiers which are security vulnerability IDs, not Jira issues
 	jiraPattern := regexp.MustCompile(`\b[A-Z][A-Z0-9]+-\d+\b`)
 	
 	// Search in PR title first
-	if issue := findValidJiraIssue(jiraPattern, pr.Title); issue != "" {
+	if issue := findValidJiraIssue(jiraPattern, pr.GetTitle()); issue != "" {
 		return issue
 	}
 	
 	// Search in PR body if available
-	if pr.Body != nil && *pr.Body != "" {
-		if issue := findValidJiraIssue(jiraPattern, *pr.Body); issue != "" {
+	if pr.Body != nil && pr.GetBody() != "" {
+		if issue := findValidJiraIssue(jiraPattern, pr.GetBody()); issue != "" {
 			return issue
 		}
 	}
 	
 	// Search in branch name (head ref)
-	if issue := findValidJiraIssue(jiraPattern, strings.ToUpper(pr.Head.Ref)); issue != "" {
+	if issue := findValidJiraIssue(jiraPattern, strings.ToUpper(pr.GetHead().GetRef())); issue != "" {
 		return issue
 	}
 	
 	// If not found, check if the user is a bot
-	if isBot(pr.User.Login) {
+	if isBot(pr.GetUser().GetLogin()) {
 		return "BOT"
 	}
 	
@@ -871,7 +641,7 @@ func extractJiraIssue(pr *GitHubPR) string {
 	return "UNKNOWN"
 }
 
-func calculatePRMetrics(pr *GitHubPR, reviews []GitHubReview, comments []GitHubComment, timeline []GitHubTimelineEvent, timestamps *Timestamps) *PRMetrics {
+func calculatePRMetrics(pr *github.PullRequest, reviews []*github.PullRequestReview, comments []*github.IssueComment, timeline []*github.Timeline, timestamps *Timestamps) *PRMetrics {
 	metrics := &PRMetrics{}
 	
 	// Time to First Review Request: time from PR creation to first review request
@@ -942,9 +712,9 @@ func calculatePRMetrics(pr *GitHubPR, reviews []GitHubReview, comments []GitHubC
 	nonBlockingCount := 0
 	
 	for _, review := range reviews {
-		if review.State == "CHANGES_REQUESTED" {
+		if review.GetState() == "CHANGES_REQUESTED" {
 			blockingCount++
-		} else if review.State == "COMMENTED" || review.State == "APPROVED" {
+		} else if review.GetState() == "COMMENTED" || review.GetState() == "APPROVED" {
 			nonBlockingCount++
 		}
 	}
@@ -957,7 +727,7 @@ func calculatePRMetrics(pr *GitHubPR, reviews []GitHubReview, comments []GitHubC
 	// Reviewer Participation Ratio: (actual reviewers) / (requested reviewers)
 	actualReviewers := make(map[string]bool)
 	for _, review := range reviews {
-		actualReviewers[review.User.Login] = true
+		actualReviewers[review.GetUser().GetLogin()] = true
 	}
 	
 	requestedReviewers := countAllRequestedReviewers(pr, reviews)
