@@ -33,6 +33,7 @@ type PRDetails struct {
 	Metrics           *PRMetrics `json:"metrics,omitempty"`
 	ReleaseName       *string  `json:"release_name,omitempty"`
 	Timestamps        *PRTimestamps `json:"timestamps,omitempty"`
+	GeneratedAt       string   `json:"generated_at"`
 }
 
 type GitHubPR struct {
@@ -128,7 +129,6 @@ type PRTimestamps struct {
 	SecondApproval    *string `json:"second_approval,omitempty"`
 	MergedAt          *string `json:"merged_at,omitempty"`
 	ClosedAt          *string `json:"closed_at,omitempty"`
-	GeneratedAt       string  `json:"generated_at"`
 }
 
 type PRMetrics struct {
@@ -246,6 +246,7 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		CommitsAfterFirstReview: commitsAfterFirstReview,
 		JiraIssue:            jiraIssue,
 		Metrics:              metrics,
+		GeneratedAt:          time.Now().UTC().Format(time.RFC3339),
 	}
 
 	// Add release name if it exists
@@ -262,7 +263,6 @@ func getPRDetails(client *http.Client, token, org, repo string, prNumber int) (*
 		SecondApproval:    timestamps.SecondApproval,
 		MergedAt:          timestamps.MergedAt,
 		ClosedAt:          timestamps.ClosedAt,
-		GeneratedAt:       time.Now().UTC().Format(time.RFC3339),
 	}
 	
 	result.Timestamps = prTimestamps

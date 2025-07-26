@@ -1426,12 +1426,12 @@ func TestJSONOutputStructure(t *testing.T) {
 		AuthorUsername:   "author",
 		State:            "open",
 		JiraIssue:        "TEST-123",
+		GeneratedAt:      "2023-01-01T20:00:00Z",
 		Timestamps: &PRTimestamps{
 			CreatedAt:         stringPtr("2023-01-01T10:00:00Z"),
 			FirstReviewRequest: stringPtr("2023-01-01T11:00:00Z"),
 			FirstComment:      stringPtr("2023-01-01T12:00:00Z"),
 			FirstApproval:     stringPtr("2023-01-01T15:00:00Z"),
-			GeneratedAt:       "2023-01-01T20:00:00Z",
 		},
 	}
 
@@ -1466,19 +1466,23 @@ func TestJSONOutputStructure(t *testing.T) {
 	if timestamps["first_approval"] != "2023-01-01T15:00:00Z" {
 		t.Errorf("Expected first_approval to be '2023-01-01T15:00:00Z', got %v", timestamps["first_approval"])
 	}
-	if timestamps["generated_at"] != "2023-01-01T20:00:00Z" {
-		t.Errorf("Expected generated_at to be '2023-01-01T20:00:00Z', got %v", timestamps["generated_at"])
-	}
 
-	// Verify that individual timestamp fields are not at the root level
+	// Verify that individual timestamp fields are not at the root level (except generated_at)
 	if _, exists := result["created_at"]; exists {
 		t.Error("created_at should not exist at root level")
 	}
 	if _, exists := result["first_review_request"]; exists {
 		t.Error("first_review_request should not exist at root level")
 	}
-	if _, exists := result["generated_at"]; exists {
-		t.Error("generated_at should not exist at root level")
+	
+	// Verify that generated_at IS at the root level
+	if result["generated_at"] != "2023-01-01T20:00:00Z" {
+		t.Errorf("Expected generated_at to be '2023-01-01T20:00:00Z' at root level, got %v", result["generated_at"])
+	}
+	
+	// Verify that generated_at is NOT in the timestamps object
+	if _, exists := timestamps["generated_at"]; exists {
+		t.Error("generated_at should not exist in timestamps object")
 	}
 }
 
