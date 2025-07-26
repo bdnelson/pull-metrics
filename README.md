@@ -111,6 +111,7 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
   "commits_after_first_review": 0,
   "jira_issue": "string",
   "metrics": {
+    "time_to_first_review_request_hours": 2.0,
     "time_to_first_review_hours": 1.5,
     "review_cycle_time_hours": 24.0,
     "blocking_non_blocking_ratio": 0.33,
@@ -176,12 +177,14 @@ The `metrics` object contains calculated performance indicators for the PR revie
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `time_to_first_review_request_hours` | float | Hours from PR creation to first review request (optional) |
 | `time_to_first_review_hours` | float | Hours from first review request to first comment or first approval, whichever comes first (optional) |
 | `review_cycle_time_hours` | float | Hours from first review request to PR resolution (merge/close) (optional) |
 | `blocking_non_blocking_ratio` | float | Ratio of blocking (CHANGES_REQUESTED) to non-blocking (APPROVED/COMMENTED) reviews (optional) |
 | `reviewer_participation_ratio` | float | Ratio of actual reviewers to requested reviewers (optional) |
 
 **Metrics Calculation Details:**
+- **Time to First Review Request**: Only calculated if first review request occurs after PR creation
 - **Time to First Review**: Only calculated if first review activity (comment or approval) occurs after first review request
 - **Review Cycle Time**: Uses merge time if available, otherwise close time
 - **Blocking Ratio**: Only calculated if there are non-blocking reviews (avoids division by zero)
@@ -307,6 +310,7 @@ $ ./pull-metrics microsoft vscode 12345
   "commits_after_first_review": 2,
   "jira_issue": "VSCODE-123",
   "metrics": {
+    "time_to_first_review_request_hours": 0.5,
     "time_to_first_review_hours": 2.5,
     "review_cycle_time_hours": 25.5,
     "blocking_non_blocking_ratio": 0.5,

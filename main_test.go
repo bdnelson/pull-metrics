@@ -1192,11 +1192,17 @@ func TestCalculatePRMetrics(t *testing.T) {
 			comments: []GitHubComment{},
 			timeline: []GitHubTimelineEvent{},
 			timestamps: &Timestamps{
+				CreatedAt:         stringPtr("2023-01-01T10:00:00Z"),
 				FirstReviewRequest: stringPtr("2023-01-01T11:00:00Z"),
 				FirstComment:       stringPtr("2023-01-01T12:00:00Z"),
 				MergedAt:          stringPtr("2023-01-01T18:00:00Z"),
 			},
 			validate: func(t *testing.T, metrics *PRMetrics) {
+				// Time to First Review Request: 10:00 to 11:00 = 1 hour
+				if metrics.TimeToFirstReviewRequestHours == nil || *metrics.TimeToFirstReviewRequestHours != 1.0 {
+					t.Errorf("Expected TimeToFirstReviewRequestHours to be 1.0, got %v", metrics.TimeToFirstReviewRequestHours)
+				}
+				
 				// Time to First Review: 11:00 to 12:00 = 1 hour (first comment)
 				if metrics.TimeToFirstReviewHours == nil || *metrics.TimeToFirstReviewHours != 1.0 {
 					t.Errorf("Expected TimeToFirstReviewHours to be 1.0, got %v", metrics.TimeToFirstReviewHours)
@@ -1230,6 +1236,9 @@ func TestCalculatePRMetrics(t *testing.T) {
 			timeline:   []GitHubTimelineEvent{},
 			timestamps: &Timestamps{},
 			validate: func(t *testing.T, metrics *PRMetrics) {
+				if metrics.TimeToFirstReviewRequestHours != nil {
+					t.Errorf("Expected TimeToFirstReviewRequestHours to be nil, got %v", metrics.TimeToFirstReviewRequestHours)
+				}
 				if metrics.TimeToFirstReviewHours != nil {
 					t.Errorf("Expected TimeToFirstReviewHours to be nil, got %v", metrics.TimeToFirstReviewHours)
 				}
@@ -1382,6 +1391,69 @@ func TestCalculatePRMetrics(t *testing.T) {
 				// Time to First Review: 10:00 to 13:00 = 3 hours (only approval available)
 				if metrics.TimeToFirstReviewHours == nil || *metrics.TimeToFirstReviewHours != 3.0 {
 					t.Errorf("Expected TimeToFirstReviewHours to be 3.0 (only approval), got %v", metrics.TimeToFirstReviewHours)
+				}
+			},
+		},
+		{
+			name: "Time to first review request - different time intervals",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{},
+			},
+			reviews:  []GitHubReview{},
+			comments: []GitHubComment{},
+			timeline: []GitHubTimelineEvent{},
+			timestamps: &Timestamps{
+				CreatedAt:         stringPtr("2023-01-01T09:00:00Z"),
+				FirstReviewRequest: stringPtr("2023-01-01T12:30:00Z"), // 3.5 hours later
+			},
+			validate: func(t *testing.T, metrics *PRMetrics) {
+				// Time to First Review Request: 09:00 to 12:30 = 3.5 hours
+				if metrics.TimeToFirstReviewRequestHours == nil || *metrics.TimeToFirstReviewRequestHours != 3.5 {
+					t.Errorf("Expected TimeToFirstReviewRequestHours to be 3.5, got %v", metrics.TimeToFirstReviewRequestHours)
+				}
+			},
+		},
+		{
+			name: "Time to first review request - review request before creation (edge case)",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{},
+			},
+			reviews:  []GitHubReview{},
+			comments: []GitHubComment{},
+			timeline: []GitHubTimelineEvent{},
+			timestamps: &Timestamps{
+				CreatedAt:         stringPtr("2023-01-01T12:00:00Z"),
+				FirstReviewRequest: stringPtr("2023-01-01T11:00:00Z"), // Before creation
+			},
+			validate: func(t *testing.T, metrics *PRMetrics) {
+				// Should not calculate metric if review request is before creation
+				if metrics.TimeToFirstReviewRequestHours != nil {
+					t.Errorf("Expected TimeToFirstReviewRequestHours to be nil when review request is before creation, got %v", metrics.TimeToFirstReviewRequestHours)
+				}
+			},
+		},
+		{
+			name: "Time to first review request - only creation timestamp available",
+			pr: &GitHubPR{
+				RequestedReviewers: []struct {
+					Login string `json:"login"`
+				}{},
+			},
+			reviews:  []GitHubReview{},
+			comments: []GitHubComment{},
+			timeline: []GitHubTimelineEvent{},
+			timestamps: &Timestamps{
+				CreatedAt: stringPtr("2023-01-01T10:00:00Z"),
+				// No FirstReviewRequest
+			},
+			validate: func(t *testing.T, metrics *PRMetrics) {
+				// Should not calculate metric if no review request timestamp
+				if metrics.TimeToFirstReviewRequestHours != nil {
+					t.Errorf("Expected TimeToFirstReviewRequestHours to be nil when no review request, got %v", metrics.TimeToFirstReviewRequestHours)
 				}
 			},
 		},
