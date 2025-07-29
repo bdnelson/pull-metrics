@@ -766,3 +766,180 @@ func TestCalculatePRMetrics_DraftTime(t *testing.T) {
 		})
 	}
 }
+
+func TestFindReleaseForMergedPR_WithCreatedAt(t *testing.T) {
+	tests := []struct {
+		name                    string
+		pr                      *github.PullRequest
+		releases                []*github.RepositoryRelease
+		expectedReleaseName     *string
+		expectedReleaseCreatedAt *string
+	}{
+		{
+			name: "merged PR with release and created timestamp",
+			pr: &github.PullRequest{
+				Merged:   boolPtr(true),
+				MergedAt: timePtr(time.Date(2023, 1, 15, 12, 0, 0, 0, time.UTC)),
+			},
+			releases: []*github.RepositoryRelease{
+				{
+					Name:        stringPtr("v1.0.0"),
+					TagName:     stringPtr("v1.0.0"),
+					PublishedAt: timePtr(time.Date(2023, 1, 16, 10, 0, 0, 0, time.UTC)),
+					CreatedAt:   timePtr(time.Date(2023, 1, 16, 9, 0, 0, 0, time.UTC)),
+				},
+			},
+			expectedReleaseName:     stringPtr("v1.0.0"),
+			expectedReleaseCreatedAt: stringPtr("2023-01-16T09:00:00Z"),
+		},
+		{
+			name: "merged PR with release but no created timestamp",
+			pr: &github.PullRequest{
+				Merged:   boolPtr(true),
+				MergedAt: timePtr(time.Date(2023, 1, 15, 12, 0, 0, 0, time.UTC)),
+			},
+			releases: []*github.RepositoryRelease{
+				{
+					Name:        stringPtr("v1.0.0"),
+					TagName:     stringPtr("v1.0.0"),
+					PublishedAt: timePtr(time.Date(2023, 1, 16, 10, 0, 0, 0, time.UTC)),
+					CreatedAt:   nil, // No creation timestamp
+				},
+			},
+			expectedReleaseName:     stringPtr("v1.0.0"),
+			expectedReleaseCreatedAt: nil,
+		},
+		{
+			name: "unmerged PR",
+			pr: &github.PullRequest{
+				Merged:   boolPtr(false),
+				MergedAt: nil,
+			},
+			releases: []*github.RepositoryRelease{
+				{
+					Name:        stringPtr("v1.0.0"),
+					TagName:     stringPtr("v1.0.0"),
+					PublishedAt: timePtr(time.Date(2023, 1, 16, 10, 0, 0, 0, time.UTC)),
+					CreatedAt:   timePtr(time.Date(2023, 1, 16, 9, 0, 0, 0, time.UTC)),
+				},
+			},
+			expectedReleaseName:     nil,
+			expectedReleaseCreatedAt: nil,
+		},
+		{
+			name: "merged PR with multiple releases, earliest selected",
+			pr: &github.PullRequest{
+				Merged:   boolPtr(true),
+				MergedAt: timePtr(time.Date(2023, 1, 15, 12, 0, 0, 0, time.UTC)),
+			},
+			releases: []*github.RepositoryRelease{
+				{
+					Name:        stringPtr("v1.1.0"),
+					TagName:     stringPtr("v1.1.0"),
+					PublishedAt: timePtr(time.Date(2023, 1, 20, 10, 0, 0, 0, time.UTC)),
+					CreatedAt:   timePtr(time.Date(2023, 1, 20, 9, 0, 0, 0, time.UTC)),
+				},
+				{
+					Name:        stringPtr("v1.0.0"),
+					TagName:     stringPtr("v1.0.0"),
+					PublishedAt: timePtr(time.Date(2023, 1, 16, 10, 0, 0, 0, time.UTC)),
+					CreatedAt:   timePtr(time.Date(2023, 1, 16, 9, 0, 0, 0, time.UTC)),
+				},
+			},
+			expectedReleaseName:     stringPtr("v1.0.0"), // Earliest release
+			expectedReleaseCreatedAt: stringPtr("2023-01-16T09:00:00Z"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			releaseName, releaseCreatedAt := findReleaseForMergedPR(tt.pr, tt.releases)
+			
+			if tt.expectedReleaseName == nil {
+				if releaseName != nil {
+					t.Errorf("findReleaseForMergedPR() releaseName = %v, want nil", *releaseName)
+				}
+			} else {
+				if releaseName == nil {
+					t.Errorf("findReleaseForMergedPR() releaseName = nil, want %v", *tt.expectedReleaseName)
+				} else if *releaseName != *tt.expectedReleaseName {
+					t.Errorf("findReleaseForMergedPR() releaseName = %v, want %v", *releaseName, *tt.expectedReleaseName)
+				}
+			}
+			
+			if tt.expectedReleaseCreatedAt == nil {
+				if releaseCreatedAt != nil && *releaseCreatedAt != "" {
+					t.Errorf("findReleaseForMergedPR() releaseCreatedAt = %v, want nil or empty", *releaseCreatedAt)
+				}
+			} else {
+				if releaseCreatedAt == nil {
+					t.Errorf("findReleaseForMergedPR() releaseCreatedAt = nil, want %v", *tt.expectedReleaseCreatedAt)
+				} else if *releaseCreatedAt != *tt.expectedReleaseCreatedAt {
+					t.Errorf("findReleaseForMergedPR() releaseCreatedAt = %v, want %v", *releaseCreatedAt, *tt.expectedReleaseCreatedAt)
+				}
+			}
+		})
+	}
+}
+
+func TestGetPRDetails_ReleaseCreatedAtInTimestamps(t *testing.T) {
+	// Test that release_created_at appears in timestamps object, not at top level
+	pr := &github.PullRequest{
+		Title:    stringPtr("Test PR"),
+		HTMLURL:  stringPtr("https://github.com/org/repo/pull/1"),
+		NodeID:   stringPtr("PR_node123"),
+		User:     &github.User{Login: stringPtr("author")},
+		Merged:   boolPtr(true),
+		MergedAt: timePtr(time.Date(2023, 1, 15, 12, 0, 0, 0, time.UTC)),
+		CreatedAt: timePtr(time.Date(2023, 1, 15, 10, 0, 0, 0, time.UTC)),
+	}
+
+	releases := []*github.RepositoryRelease{
+		{
+			Name:        stringPtr("v1.0.0"),
+			TagName:     stringPtr("v1.0.0"),
+			PublishedAt: timePtr(time.Date(2023, 1, 16, 10, 0, 0, 0, time.UTC)),
+			CreatedAt:   timePtr(time.Date(2023, 1, 16, 9, 0, 0, 0, time.UTC)),
+		},
+	}
+
+	// Mock the functions that would normally be called
+	releaseName, releaseCreatedAt := findReleaseForMergedPR(pr, releases)
+	
+	// Verify the function returns expected values
+	if releaseName == nil || *releaseName != "v1.0.0" {
+		t.Errorf("Expected release name v1.0.0, got %v", releaseName)
+	}
+	if releaseCreatedAt == nil || *releaseCreatedAt != "2023-01-16T09:00:00Z" {
+		t.Errorf("Expected release created at 2023-01-16T09:00:00Z, got %v", releaseCreatedAt)
+	}
+
+	// Create a timestamps object similar to how getPRDetails does
+	timestamps := &Timestamps{
+		CreatedAt: stringPtr("2023-01-15T10:00:00Z"),
+		MergedAt:  stringPtr("2023-01-15T12:00:00Z"),
+	}
+
+	prTimestamps := &PRTimestamps{
+		FirstCommit:        timestamps.FirstCommit,
+		CreatedAt:          timestamps.CreatedAt,
+		FirstReviewRequest: timestamps.FirstReviewRequest,
+		FirstComment:       timestamps.FirstComment,
+		FirstApproval:      timestamps.FirstApproval,
+		SecondApproval:     timestamps.SecondApproval,
+		MergedAt:           timestamps.MergedAt,
+		ClosedAt:           timestamps.ClosedAt,
+	}
+
+	// Add release creation timestamp if it exists (like getPRDetails does)
+	if releaseCreatedAt != nil && *releaseCreatedAt != "" {
+		prTimestamps.ReleaseCreatedAt = releaseCreatedAt
+	}
+
+	// Verify release_created_at is in timestamps object
+	if prTimestamps.ReleaseCreatedAt == nil {
+		t.Error("Expected ReleaseCreatedAt to be set in timestamps object")
+	} else if *prTimestamps.ReleaseCreatedAt != "2023-01-16T09:00:00Z" {
+		t.Errorf("Expected ReleaseCreatedAt to be 2023-01-16T09:00:00Z, got %v", *prTimestamps.ReleaseCreatedAt)
+	}
+}

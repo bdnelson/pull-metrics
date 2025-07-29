@@ -171,7 +171,8 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
     "first_approval": "2023-01-01T15:00:00Z",
     "second_approval": "2023-01-01T16:00:00Z",
     "merged_at": "2023-01-01T18:00:00Z",
-    "closed_at": "2023-01-01T19:00:00Z"
+    "closed_at": "2023-01-01T19:00:00Z",
+    "release_created_at": "2023-01-01T08:00:00Z"
   },
   "generated_at": "2025-01-25T14:30:45Z"
 }
@@ -220,6 +221,7 @@ The `timestamps` object contains all timestamp information related to the PR lif
 | `second_approval` | string | UTC timestamp of the second approval (optional) |
 | `merged_at` | string | UTC timestamp when the PR was merged (optional) |
 | `closed_at` | string | UTC timestamp when the PR was closed (optional) |
+| `release_created_at` | string | UTC timestamp when the identified release was created (optional) |
 
 ### Metrics Object
 
@@ -247,6 +249,7 @@ The `metrics` object contains calculated performance indicators for the PR revie
 Fields marked as "optional" are only included in the output when applicable:
 - `timestamps` object is included when any timestamp information is available; individual timestamp fields within the object are excluded if the corresponding event never occurred
 - `release_name` is only included for merged PRs where a matching release is found
+- `release_created_at` is only included in the timestamps object for merged PRs where a matching release with creation timestamp is found
 - `metrics` object is excluded if no calculable metrics are available
 - Individual metric fields are excluded if calculation requirements are not met
 
@@ -448,7 +451,8 @@ $ ./pull-metrics microsoft vscode 12345
     "first_review_request": "2023-01-15T10:00:00Z",
     "first_comment": "2023-01-15T11:30:00Z",
     "first_approval": "2023-01-16T14:00:00Z",
-    "merged_at": "2023-01-16T15:30:00Z"
+    "merged_at": "2023-01-16T15:30:00Z",
+    "release_created_at": "2023-01-16T08:00:00Z"
   },
   "generated_at": "2025-01-25T14:30:45Z"
 }

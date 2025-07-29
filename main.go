@@ -73,6 +73,7 @@ type PRTimestamps struct {
 	SecondApproval     *string `json:"second_approval,omitempty"`
 	MergedAt           *string `json:"merged_at,omitempty"`
 	ClosedAt           *string `json:"closed_at,omitempty"`
+	ReleaseCreatedAt   *string `json:"release_created_at,omitempty"`
 }
 
 // PRMetrics represents calculated performance metrics for the PR review process
@@ -189,7 +190,7 @@ func getPRDetails(ctx context.Context, client *github.Client, org, repo string, 
 	numRequestedReviewers := countAllRequestedReviewers(pr, reviews)
 	timestamps := getTimestamps(pr, reviews, comments, reviewComments, timeline, commits)
 	prSize := calculatePRSize(files)
-	releaseName := findReleaseForMergedPR(pr, releases)
+	releaseName, releaseCreatedAt := findReleaseForMergedPR(pr, releases)
 	commitsAfterFirstReview := countCommitsAfterFirstReview(commits, timeline)
 	changeRequestsCount := countChangeRequests(reviews)
 	jiraIssue := extractJiraIssue(pr)
@@ -235,6 +236,11 @@ func getPRDetails(ctx context.Context, client *github.Client, org, repo string, 
 		SecondApproval:     timestamps.SecondApproval,
 		MergedAt:           timestamps.MergedAt,
 		ClosedAt:           timestamps.ClosedAt,
+	}
+
+	// Add release creation timestamp if it exists
+	if releaseCreatedAt != nil && *releaseCreatedAt != "" {
+		prTimestamps.ReleaseCreatedAt = releaseCreatedAt
 	}
 
 	result.Timestamps = prTimestamps
@@ -574,7 +580,21 @@ func calculatePRSize(files []*github.CommitFile) *PRSize {
 	return size
 }
 
-func findReleaseForMergedPR(pr *github.PullRequest, releases []*github.RepositoryRelease) *string {
+// ReleaseInfo holds both the name and creation timestamp of a release
+type ReleaseInfo struct {
+	Name      string
+	CreatedAt string
+}
+
+func findReleaseForMergedPR(pr *github.PullRequest, releases []*github.RepositoryRelease) (*string, *string) {
+	releaseInfo := findReleaseInfoForMergedPR(pr, releases)
+	if releaseInfo == nil {
+		return nil, nil
+	}
+	return &releaseInfo.Name, &releaseInfo.CreatedAt
+}
+
+func findReleaseInfoForMergedPR(pr *github.PullRequest, releases []*github.RepositoryRelease) *ReleaseInfo {
 	// Only check for releases if the PR was merged
 	if !pr.GetMerged() || pr.MergedAt == nil {
 		return nil
@@ -613,7 +633,16 @@ func findReleaseForMergedPR(pr *github.PullRequest, releases []*github.Repositor
 	if releaseName == "" {
 		releaseName = release.GetTagName()
 	}
-	return &releaseName
+	
+	var releaseCreatedAt string
+	if release.CreatedAt != nil && !release.GetCreatedAt().IsZero() {
+		releaseCreatedAt = formatToUTC(release.GetCreatedAt().Format(time.RFC3339))
+	}
+	
+	return &ReleaseInfo{
+		Name:      releaseName,
+		CreatedAt: releaseCreatedAt,
+	}
 }
 
 func countCommitsAfterFirstReview(commits []*github.RepositoryCommit, timeline []*github.Timeline) int {
