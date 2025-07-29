@@ -77,6 +77,7 @@ type PRTimestamps struct {
 
 // PRMetrics represents calculated performance metrics for the PR review process
 type PRMetrics struct {
+	DraftTimeHours                float64  `json:"draft_time_hours"`
 	TimeToFirstReviewRequestHours *float64 `json:"time_to_first_review_request_hours,omitempty"`
 	TimeToFirstReviewHours        *float64 `json:"time_to_first_review_hours,omitempty"`
 	ReviewCycleTimeHours          *float64 `json:"review_cycle_time_hours,omitempty"`
@@ -705,6 +706,19 @@ func extractJiraIssue(pr *github.PullRequest) string {
 
 func calculatePRMetrics(pr *github.PullRequest, reviews []*github.PullRequestReview, comments []*github.IssueComment, timeline []*github.Timeline, timestamps *Timestamps) *PRMetrics {
 	metrics := &PRMetrics{}
+
+	// Draft Time: time from PR creation to first review request, minimum 0
+	draftHours := 0.0
+	if timestamps.CreatedAt != nil && timestamps.FirstReviewRequest != nil {
+		if createdTime, err := time.Parse(time.RFC3339, *timestamps.CreatedAt); err == nil {
+			if firstReviewRequestTime, err := time.Parse(time.RFC3339, *timestamps.FirstReviewRequest); err == nil {
+				if firstReviewRequestTime.After(createdTime) {
+					draftHours = firstReviewRequestTime.Sub(createdTime).Hours()
+				}
+			}
+		}
+	}
+	metrics.DraftTimeHours = draftHours
 
 	// Time to First Review Request: time from PR creation to first review request
 	if timestamps.CreatedAt != nil && timestamps.FirstReviewRequest != nil {

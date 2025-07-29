@@ -155,6 +155,7 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
   "jira_issue": "string",
   "is_bot": false,
   "metrics": {
+    "draft_time_hours": 2.0,
     "time_to_first_review_request_hours": 2.0,
     "time_to_first_review_hours": 1.5,
     "review_cycle_time_hours": 24.0,
@@ -226,6 +227,7 @@ The `metrics` object contains calculated performance indicators for the PR revie
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `draft_time_hours` | float | Hours from PR creation to first review request, minimum 0.0 |
 | `time_to_first_review_request_hours` | float | Hours from PR creation to first review request (optional) |
 | `time_to_first_review_hours` | float | Hours from first review request to first comment (conversation or review comment) or first approval, whichever comes first (optional) |
 | `review_cycle_time_hours` | float | Hours from first review request to PR resolution (merge/close) (optional) |
@@ -233,6 +235,7 @@ The `metrics` object contains calculated performance indicators for the PR revie
 | `reviewer_participation_ratio` | float | Ratio of actual reviewers to requested reviewers (optional) |
 
 **Metrics Calculation Details:**
+- **Draft Time**: Always included, minimum 0.0. Calculated as hours from PR creation to first review request when both timestamps are available and review request occurs after creation
 - **Time to First Review Request**: Only calculated if first review request occurs after PR creation
 - **Time to First Review**: Only calculated if first review activity (conversation comment, review comment, or approval) occurs after first review request
 - **Review Cycle Time**: Uses merge time if available, otherwise close time
@@ -431,6 +434,7 @@ $ ./pull-metrics microsoft vscode 12345
   "jira_issue": "VSCODE-123",
   "is_bot": false,
   "metrics": {
+    "draft_time_hours": 0.5,
     "time_to_first_review_request_hours": 0.5,
     "time_to_first_review_hours": 2.5,
     "review_cycle_time_hours": 25.5,

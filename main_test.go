@@ -703,3 +703,66 @@ func TestCalculatePRSize(t *testing.T) {
 		})
 	}
 }
+
+func TestCalculatePRMetrics_DraftTime(t *testing.T) {
+	tests := []struct {
+		name        string
+		timestamps  *Timestamps
+		expectedHours float64
+	}{
+		{
+			name: "draft time calculated when both timestamps exist",
+			timestamps: &Timestamps{
+				CreatedAt:          stringPtr("2023-01-15T10:00:00Z"),
+				FirstReviewRequest: stringPtr("2023-01-15T12:30:00Z"),
+			},
+			expectedHours: 2.5, // 2.5 hours
+		},
+		{
+			name: "zero draft time when created_at missing",
+			timestamps: &Timestamps{
+				FirstReviewRequest: stringPtr("2023-01-15T12:30:00Z"),
+			},
+			expectedHours: 0.0,
+		},
+		{
+			name: "zero draft time when first_review_request missing",
+			timestamps: &Timestamps{
+				CreatedAt: stringPtr("2023-01-15T10:00:00Z"),
+			},
+			expectedHours: 0.0,
+		},
+		{
+			name: "zero draft time when review request is before creation",
+			timestamps: &Timestamps{
+				CreatedAt:          stringPtr("2023-01-15T12:00:00Z"),
+				FirstReviewRequest: stringPtr("2023-01-15T10:00:00Z"), // Before creation
+			},
+			expectedHours: 0.0,
+		},
+		{
+			name: "zero draft time when review request is at same time as creation",
+			timestamps: &Timestamps{
+				CreatedAt:          stringPtr("2023-01-15T10:00:00Z"),
+				FirstReviewRequest: stringPtr("2023-01-15T10:00:00Z"), // Same time
+			},
+			expectedHours: 0.0, // Should be 0 since not after creation time
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			metrics := calculatePRMetrics(
+				&github.PullRequest{},
+				[]*github.PullRequestReview{},
+				[]*github.IssueComment{},
+				[]*github.Timeline{},
+				tt.timestamps,
+			)
+
+			if metrics.DraftTimeHours != tt.expectedHours {
+				t.Errorf("calculatePRMetrics().DraftTimeHours = %v, want %v", metrics.DraftTimeHours, tt.expectedHours)
+			}
+		})
+	}
+}
