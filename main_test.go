@@ -468,61 +468,6 @@ func TestCountChangeRequests(t *testing.T) {
 	}
 }
 
-func TestCountChangeRequestComments(t *testing.T) {
-	tests := []struct {
-		name           string
-		comments       []*github.IssueComment
-		reviewComments []*github.PullRequestComment
-		reviews        []*github.PullRequestReview
-		expected       int
-	}{
-		{
-			name: "comments from change requesters",
-			comments: []*github.IssueComment{
-				{User: &github.User{Login: stringPtr("changer1")}},
-				{User: &github.User{Login: stringPtr("approver1")}},
-				{User: &github.User{Login: stringPtr("changer1")}}, // Same user, multiple comments
-			},
-			reviewComments: []*github.PullRequestComment{
-				{User: &github.User{Login: stringPtr("changer2")}},
-				{User: &github.User{Login: stringPtr("regular_user")}},
-			},
-			reviews: []*github.PullRequestReview{
-				{User: &github.User{Login: stringPtr("changer1")}, State: stringPtr("CHANGES_REQUESTED")},
-				{User: &github.User{Login: stringPtr("changer2")}, State: stringPtr("CHANGES_REQUESTED")},
-				{User: &github.User{Login: stringPtr("approver1")}, State: stringPtr("APPROVED")},
-			},
-			expected: 3, // 2 comments from changer1 + 1 review comment from changer2
-		},
-		{
-			name:           "no change requesters",
-			comments:       []*github.IssueComment{{User: &github.User{Login: stringPtr("user1")}}},
-			reviewComments: []*github.PullRequestComment{{User: &github.User{Login: stringPtr("user2")}}},
-			reviews: []*github.PullRequestReview{
-				{User: &github.User{Login: stringPtr("user3")}, State: stringPtr("APPROVED")},
-			},
-			expected: 0,
-		},
-		{
-			name:           "no comments",
-			comments:       []*github.IssueComment{},
-			reviewComments: []*github.PullRequestComment{},
-			reviews: []*github.PullRequestReview{
-				{User: &github.User{Login: stringPtr("changer1")}, State: stringPtr("CHANGES_REQUESTED")},
-			},
-			expected: 0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := countChangeRequestComments(tt.comments, tt.reviewComments, tt.reviews)
-			if result != tt.expected {
-				t.Errorf("countChangeRequestComments() = %v, want %v", result, tt.expected)
-			}
-		})
-	}
-}
 
 func TestIsBot(t *testing.T) {
 	tests := []struct {

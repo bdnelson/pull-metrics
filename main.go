@@ -34,7 +34,6 @@ type PRDetails struct {
 	NumApprovers               int           `json:"num_approvers"`
 	NumRequestedReviewers      int           `json:"num_requested_reviewers"`
 	ChangeRequestsCount        int           `json:"change_requests_count"`
-	ChangeRequestCommentsCount int           `json:"change_request_comments_count"`
 	LinesChanged               int           `json:"lines_changed"`
 	FilesChanged               int           `json:"files_changed"`
 	CommitsAfterFirstReview    int           `json:"commits_after_first_review"`
@@ -192,7 +191,6 @@ func getPRDetails(ctx context.Context, client *github.Client, org, repo string, 
 	releaseName := findReleaseForMergedPR(pr, releases)
 	commitsAfterFirstReview := countCommitsAfterFirstReview(commits, timeline)
 	changeRequestsCount := countChangeRequests(reviews)
-	changeRequestCommentsCount := countChangeRequestComments(comments, reviewComments, reviews)
 	jiraIssue := extractJiraIssue(pr)
 	metrics := calculatePRMetrics(pr, reviews, comments, timeline, timestamps)
 
@@ -212,7 +210,6 @@ func getPRDetails(ctx context.Context, client *github.Client, org, repo string, 
 		NumApprovers:               len(approvers),
 		NumRequestedReviewers:      numRequestedReviewers,
 		ChangeRequestsCount:        changeRequestsCount,
-		ChangeRequestCommentsCount: changeRequestCommentsCount,
 		LinesChanged:               prSize.LinesChanged,
 		FilesChanged:               prSize.FilesChanged,
 		CommitsAfterFirstReview:    commitsAfterFirstReview,
@@ -656,33 +653,6 @@ func countChangeRequests(reviews []*github.PullRequestReview) int {
 	return count
 }
 
-func countChangeRequestComments(comments []*github.IssueComment, reviewComments []*github.PullRequestComment, reviews []*github.PullRequestReview) int {
-	// Create a set of user logins who submitted change requests
-	changeRequesters := make(map[string]bool)
-	for _, review := range reviews {
-		if review.GetState() == "CHANGES_REQUESTED" {
-			changeRequesters[review.GetUser().GetLogin()] = true
-		}
-	}
-
-	count := 0
-
-	// Count regular comments from users who submitted change requests
-	for _, comment := range comments {
-		if changeRequesters[comment.GetUser().GetLogin()] {
-			count++
-		}
-	}
-
-	// Count review comments from users who submitted change requests
-	for _, reviewComment := range reviewComments {
-		if changeRequesters[reviewComment.GetUser().GetLogin()] {
-			count++
-		}
-	}
-
-	return count
-}
 
 func isBot(username string) bool {
 	return strings.Contains(username, "[bot]")

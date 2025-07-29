@@ -149,7 +149,6 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
   "num_approvers": 0,
   "num_requested_reviewers": 0,
   "change_requests_count": 0,
-  "change_request_comments_count": 0,
   "lines_changed": 0,
   "files_changed": 0,
   "commits_after_first_review": 0,
@@ -196,7 +195,6 @@ The utility outputs detailed PR information in JSON format to STDOUT. All errors
 | `num_approvers` | integer | Number of users who approved the PR |
 | `num_requested_reviewers` | integer | Total number of users who were requested to review the PR (includes both those who have reviewed and those who haven't) |
 | `change_requests_count` | integer | Number of reviews that requested changes |
-| `change_request_comments_count` | integer | Number of comments (both conversation and review comments) from users who submitted change requests |
 | `lines_changed` | integer | Total lines of code impacted (additions + deletions) |
 | `files_changed` | integer | Number of files modified in the PR |
 | `commits_after_first_review` | integer | Number of commits made after the first review request |
@@ -348,7 +346,6 @@ The utility includes comprehensive unit tests covering:
 - Approver identification and counting
 - Commenter counting with author exclusion (including both conversation and review comments)
 - Comment counting (total comment count from both sources)
-- Change request comments counting (comments from users who submitted change requests)
 - Comprehensive requested reviewers counting (includes both reviewed and pending reviewers)
 - Commenter username extraction and sorting
 - UTC timestamp formatting
@@ -428,7 +425,6 @@ $ ./pull-metrics microsoft vscode 12345
   "num_approvers": 2,
   "num_requested_reviewers": 2,
   "change_requests_count": 1,
-  "change_request_comments_count": 4,
   "lines_changed": 245,
   "files_changed": 7,
   "commits_after_first_review": 2,
