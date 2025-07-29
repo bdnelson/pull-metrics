@@ -79,7 +79,9 @@ The utility will automatically load environment variables from a `.env` file if 
 
 ## Usage
 
-### Command Line Syntax
+### Command Line Usage
+
+#### Command Line Syntax
 
 The utility supports both positional arguments and named options:
 
@@ -110,7 +112,119 @@ Display help information and available options:
 
 This shows all configuration options, including environment variable names and descriptions.
 
-### Examples
+### Programmatic Usage
+
+This project now exposes a reusable Go package (`pullmetrics`) that can be imported and used in other projects.
+
+#### Basic Usage
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    
+    "pull-metrics/pullmetrics"
+)
+
+func main() {
+    config := pullmetrics.Config{
+        GitHubToken: "your_github_token_here",
+    }
+    
+    analyzer, err := pullmetrics.NewAnalyzer(config)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    ctx := context.Background()
+    details, err := analyzer.AnalyzePR(ctx, "microsoft", "vscode", 12345)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    fmt.Printf("PR #%d: %s\n", details.PRNumber, details.PRTitle)
+    fmt.Printf("Author: %s\n", details.AuthorUsername)
+    fmt.Printf("State: %s\n", details.State)
+    fmt.Printf("Comments: %d\n", details.NumComments)
+    fmt.Printf("Approvers: %d\n", details.NumApprovers)
+    fmt.Printf("Lines changed: %d\n", details.LinesChanged)
+    
+    if details.Metrics != nil {
+        fmt.Printf("Draft time: %.2f hours\n", details.Metrics.DraftTimeHours)
+    }
+}
+```
+
+#### Convenience Functions
+
+For simpler use cases, you can use the convenience functions:
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    
+    "pull-metrics/pullmetrics"
+)
+
+func main() {
+    config := pullmetrics.Config{
+        GitHubToken: "your_github_token_here",
+    }
+    
+    ctx := context.Background()
+    
+    // Get JSON string output (same as command line tool)
+    jsonOutput, err := pullmetrics.AnalyzePRToJSONString(ctx, config, "microsoft", "vscode", 12345)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    fmt.Println(jsonOutput)
+    
+    // Or get raw JSON bytes
+    jsonBytes, err := pullmetrics.AnalyzePRToJSON(ctx, config, "microsoft", "vscode", 12345)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    // Process jsonBytes as needed...
+}
+```
+
+#### API Reference
+
+The main types and functions available:
+
+- `pullmetrics.Config` - Configuration struct with GitHubToken
+- `pullmetrics.NewAnalyzer(config)` - Creates a new analyzer instance
+- `analyzer.AnalyzePR(ctx, org, repo, prNumber)` - Analyzes a PR and returns detailed results
+- `pullmetrics.AnalyzePRToJSON(...)` - Convenience function returning JSON bytes
+- `pullmetrics.AnalyzePRToJSONString(...)` - Convenience function returning JSON string
+
+The `PRDetails` struct contains all the same fields as described in the JSON schema section above.
+
+#### Example Program
+
+See `example/main.go` for a complete working example that demonstrates:
+- Creating an analyzer instance
+- Analyzing a PR and accessing the results
+- Using convenience functions for JSON output
+- Working with metrics and timestamps
+
+To run the example:
+```bash
+cd example
+GITHUB_TOKEN=your_token_here go run main.go
+```
+
+#### Command Line Examples
 
 ```bash
 # Analyze PR #123 in the microsoft/vscode repository (positional arguments)
@@ -335,14 +449,20 @@ make vendor
 
 ```
 pull-metrics/
-├── main.go           # Main application code
-├── main_test.go      # Unit tests
-├── Makefile          # Build automation
-├── README.md         # This documentation
-├── CLAUDE.md         # Development instructions
-├── go.mod            # Go module definition
-├── .env.example      # Example environment configuration
-└── vendor/           # Vendored dependencies
+├── main.go                    # Command-line application
+├── pullmetrics/               # Reusable package
+│   ├── types.go              # Public API types
+│   ├── analyzer.go           # Core analysis logic  
+│   ├── pullmetrics.go        # Package API and convenience functions
+│   └── analyzer_test.go      # Unit tests
+├── example/                   # Example usage
+│   └── main.go               # Example program using the package
+├── Makefile                   # Build automation
+├── README.md                  # This documentation
+├── CLAUDE.md                  # Development instructions
+├── go.mod                     # Go module definition
+├── .env.example               # Example environment configuration
+└── vendor/                    # Vendored dependencies
 ```
 
 ### Testing

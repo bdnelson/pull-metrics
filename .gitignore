@@ -71,6 +71,7 @@ flycheck_*.el
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+cover.html
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
