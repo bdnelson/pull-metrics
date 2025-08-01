@@ -1,0 +1,267 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/pullmetrics/pullmetrics/schema.json",
+  "title": "Pull Request Metrics",
+  "description": "Comprehensive analysis of a GitHub Pull Request including metrics, timestamps, and metadata",
+  "type": "object",
+  "required": [
+    "organization_name",
+    "repository_name",
+    "pr_number",
+    "pr_title",
+    "pr_web_url",
+    "pr_node_id",
+    "author_username",
+    "approver_usernames",
+    "commenter_usernames",
+    "state",
+    "num_comments",
+    "num_commenters",
+    "num_approvers",
+    "num_requested_reviewers",
+    "change_requests_count",
+    "lines_changed",
+    "files_changed",
+    "commits_after_first_review",
+    "jira_issue",
+    "is_bot",
+    "generated_at"
+  ],
+  "properties": {
+    "organization_name": {
+      "type": "string",
+      "description": "GitHub organization or username",
+      "examples": ["microsoft", "octocat"]
+    },
+    "repository_name": {
+      "type": "string",
+      "description": "Repository name",
+      "examples": ["vscode", "Hello-World"]
+    },
+    "pr_number": {
+      "type": "integer",
+      "description": "Pull Request number",
+      "minimum": 1,
+      "examples": [12345, 1]
+    },
+    "pr_title": {
+      "type": "string",
+      "description": "Pull Request title",
+      "examples": ["Fix authentication timeout issue"]
+    },
+    "pr_web_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "GitHub web URL for the Pull Request",
+      "examples": ["https://github.com/microsoft/vscode/pull/12345"]
+    },
+    "pr_node_id": {
+      "type": "string",
+      "description": "GitHub GraphQL node ID for the Pull Request",
+      "examples": ["PR_kwDOABCD123_node456"]
+    },
+    "author_username": {
+      "type": "string",
+      "description": "Username of the PR author",
+      "examples": ["contributor", "octocat"]
+    },
+    "approver_usernames": {
+      "type": "array",
+      "description": "List of usernames who approved the PR",
+      "items": {
+        "type": "string"
+      },
+      "examples": [["maintainer1", "maintainer2"], []]
+    },
+    "commenter_usernames": {
+      "type": "array",
+      "description": "List of usernames who commented on the PR from both conversation comments and review comments (excluding author), sorted alphabetically",
+      "items": {
+        "type": "string"
+      },
+      "examples": [["reviewer1", "reviewer2", "user1"], []]
+    },
+    "state": {
+      "type": "string",
+      "description": "PR state",
+      "enum": ["draft", "open", "merged", "closed"],
+      "examples": ["merged", "open"]
+    },
+    "num_comments": {
+      "type": "integer",
+      "description": "Total number of comments on the PR (both conversation comments and review comments)",
+      "minimum": 0,
+      "examples": [12, 0]
+    },
+    "num_commenters": {
+      "type": "integer",
+      "description": "Number of unique commenters from both conversation comments and review comments (excluding author)",
+      "minimum": 0,
+      "examples": [3, 0]
+    },
+    "num_approvers": {
+      "type": "integer",
+      "description": "Number of users who approved the PR",
+      "minimum": 0,
+      "examples": [2, 0]
+    },
+    "num_requested_reviewers": {
+      "type": "integer",
+      "description": "Total number of users who were requested to review the PR (includes both those who have reviewed and those who haven't)",
+      "minimum": 0,
+      "examples": [2, 0]
+    },
+    "change_requests_count": {
+      "type": "integer",
+      "description": "Number of reviews that requested changes",
+      "minimum": 0,
+      "examples": [1, 0]
+    },
+    "lines_changed": {
+      "type": "integer",
+      "description": "Total lines of code impacted (additions + deletions)",
+      "minimum": 0,
+      "examples": [245, 0]
+    },
+    "files_changed": {
+      "type": "integer",
+      "description": "Number of files modified in the PR",
+      "minimum": 0,
+      "examples": [7, 0]
+    },
+    "commits_after_first_review": {
+      "type": "integer",
+      "description": "Number of commits made after the first review request",
+      "minimum": 0,
+      "examples": [2, 0]
+    },
+    "jira_issue": {
+      "type": "string",
+      "description": "Jira issue identifier associated with the PR, 'BOT' for bot users with no Jira issue, or 'UNKNOWN' if none found",
+      "examples": ["VSCODE-123", "BOT", "UNKNOWN"]
+    },
+    "is_bot": {
+      "type": "boolean",
+      "description": "Indicates whether the PR was created by a bot (identified by '[bot]' in username)",
+      "examples": [false, true]
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Calculated performance metrics for the PR review process",
+      "properties": {
+        "draft_time_hours": {
+          "type": "number",
+          "description": "Hours from PR creation to first review request, minimum 0.0",
+          "minimum": 0,
+          "examples": [0.5, 0.0]
+        },
+        "time_to_first_review_request_hours": {
+          "type": "number",
+          "description": "Hours from PR creation to first review request",
+          "minimum": 0,
+          "examples": [0.5]
+        },
+        "time_to_first_review_hours": {
+          "type": "number",
+          "description": "Hours from first review request to first comment (conversation or review comment) or first approval, whichever comes first",
+          "minimum": 0,
+          "examples": [2.5]
+        },
+        "review_cycle_time_hours": {
+          "type": "number",
+          "description": "Hours from first review request to PR resolution (merge/close)",
+          "minimum": 0,
+          "examples": [25.5]
+        },
+        "blocking_non_blocking_ratio": {
+          "type": "number",
+          "description": "Ratio of blocking (CHANGES_REQUESTED) to non-blocking (APPROVED/COMMENTED) reviews",
+          "minimum": 0,
+          "examples": [0.5]
+        },
+        "reviewer_participation_ratio": {
+          "type": "number",
+          "description": "Ratio of actual reviewers to requested reviewers",
+          "minimum": 0,
+          "maximum": 1,
+          "examples": [1.0, 0.75]
+        }
+      },
+      "required": ["draft_time_hours"],
+      "additionalProperties": false
+    },
+    "release_name": {
+      "type": "string",
+      "description": "Name of the release containing the merged PR",
+      "examples": ["v1.75.0", "Release 2023.1"]
+    },
+    "timestamps": {
+      "type": "object",
+      "description": "Collection of all timestamp information for the PR lifecycle",
+      "properties": {
+        "first_commit": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UTC timestamp of the first commit in the PR branch",
+          "examples": ["2023-01-15T09:00:00Z"]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UTC timestamp when the PR was created",
+          "examples": ["2023-01-15T09:30:00Z"]
+        },
+        "first_review_request": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UTC timestamp of the first review request",
+          "examples": ["2023-01-15T10:00:00Z"]
+        },
+        "first_comment": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UTC timestamp of the first comment from either conversation comments or review comments",
+          "examples": ["2023-01-15T11:30:00Z"]
+        },
+        "first_approval": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UTC timestamp of the first approval",
+          "examples": ["2023-01-16T14:00:00Z"]
+        },
+        "second_approval": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UTC timestamp of the second approval",
+          "examples": ["2023-01-16T15:00:00Z"]
+        },
+        "merged_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UTC timestamp when the PR was merged",
+          "examples": ["2023-01-16T15:30:00Z"]
+        },
+        "closed_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UTC timestamp when the PR was closed",
+          "examples": ["2023-01-16T16:00:00Z"]
+        },
+        "release_created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UTC timestamp when the identified release was created",
+          "examples": ["2023-01-16T08:00:00Z"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC timestamp when this analysis was performed",
+      "examples": ["2025-01-25T14:30:45Z"]
+    }
+  },
+  "additionalProperties": false
+}
